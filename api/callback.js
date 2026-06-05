@@ -1,115 +1,152 @@
 const admin = require('firebase-admin');
 const crypto = require('crypto');
 
-// 1. Firebase Admin SDK Initialize करें
-if (admin.apps.length === 0) {
-  try {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount)
-    });
-  } catch (error) {
-    console.error("Firebase Admin initialization failed:", error);
-  }
+// सुरक्षितपणे फायरबेस इनिशियलाइज करणारा हेल्पिंग फंक्शन
+function getFirestoreDB() {
+    if (admin.apps.length === 0) {
+        // पद्धत A: संपूर्ण सर्व्हिस अकाउंट JSON स्ट्रिंगवरून पार्स करणे
+        if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+            try {
+                const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+                admin.initializeApp({
+                    credential: admin.credential.cert(serviceAccount)
+                });
+                console.log("Firebase initialized successfully via FIREBASE_SERVICE_ACCOUNT.");
+            } catch (err) {
+                console.error("FIREBASE_SERVICE_ACCOUNT JSON Parse Failed:", err.message);
+            }
+        }
+
+        // पद्धत B: वैयक्तिक Env Variables वरून इनिशियलाइज करणे (पर्यायी)
+        if (admin.apps.length === 0 && process.env.FIREBASE_PRIVATE_KEY) {
+            try {
+                admin.initializeApp({
+                    credential: admin.credential.cert({
+                        projectId: process.env.FIREBASE_PROJECT_ID || "vrewardx",
+                        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+                        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+                    })
+                });
+                console.log("Firebase initialized successfully via individual keys.");
+            } catch (err) {
+                console.error("Firebase Individual keys initialization failed:", err.message);
+            }
+        }
+
+        // पद्धत C: डिफॉल्ट क्रेडेंशियल्स (स्थानिक किंवा ऑटोमेटेड)
+        if (admin.apps.length === 0) {
+            try {
+                admin.initializeApp();
+                console.log("Firebase initialized using default application credentials.");
+            } catch (err) {
+                console.error("Default Firebase initialization also failed:", err.message);
+            }
+        }
+    }
+
+    if (admin.apps.length === 0) {
+        throw new Error("CRITICAL: Firebase Admin SDK could not be initialized. Please check your Vercel Environment Variables configured.");
+    }
+
+    return admin.firestore();
 }
 
-const db = admin.firestore();
-
-// S2S Callback Endpoint
 module.exports = async (req, res) => {
-  // केवल GET/POST अनुरोधों को अनुमति दें
-  if (req.method !== 'GET' && req.method !== 'POST') {
-    return res.status(405).send('HTTP Method Not Allowed');
-  }
-
-  // PubScale query strings से पैरामीटर निकालें
-  const { user_id, value, token, signature } = req.query;
-
-  // 2. Parameters Validation
-  if (!user_id || !value || !token || !signature) {
-    console.error("S2S Alert: Missing required parameters in request.", req.query);
-    return res.status(400).send('HTTP 400 Bad Request: Missing required parameters');
-  }
-
-  const coinsValue = parseInt(value, 10);
-  if (isNaN(coinsValue) || coinsValue <= 0) {
-    console.error("S2S Alert: Invalid coin value:", value);
-    return res.status(400).send('HTTP 400 Bad Request: Invalid reward value');
-  }
-
-  // 3. PubScale MD5 Signature Verifier
-  // S2S Security Token को Vercel Env (PUBSCALE_SECRET_KEY) से लाएं
-  const s2sSecret = process.env.PUBSCALE_SECRET_KEY || "your_pubscale_secret_here";
-
-  // PubScale की अलग-अलग hashing combinations को वेरिफ़ाई करने की सुरक्षित टेक्निक:
-  // Combination A: user_id + value + token + secret
-  const dataStringA = `${user_id}${value}${token}${s2sSecret}`;
-  const generatedSignatureA = crypto.createHash('md5').update(dataStringA).digest('hex');
-
-  // Combination B: value + user_id + token + secret (अलग SDK वर्शन्स के लिए)
-  const dataStringB = `${value}${user_id}${token}${s2sSecret}`;
-  const generatedSignatureB = crypto.createHash('md5').update(dataStringB).digest('hex');
-
-  const signatureMatches = 
-    (signature.toLowerCase() === generatedSignatureA) || 
-    (signature.toLowerCase() === generatedSignatureB);
-
-  if (!signatureMatches) {
-    console.error(`S2S Security Mismatch: Signature calculation failed! Received: ${signature}, Expected: ${generatedSignatureA}`);
-    return res.status(403).send('HTTP 403 Forbidden: Signature Checksum Verification Failed');
-  }
-
-  try {
-    // 4. Duplicate Check (Deduplication / Replay Protection)
-    // token का उपयोग यूनीक ट्रांज़ैक्शन ID के रूप में करें
-    const txDocRef = db.collection('transactions').doc(`pubscale_${token}`);
-    const txSnapshot = await txDocRef.get();
-
-    if (txSnapshot.exists) {
-      console.log(`S2S Alert: Duplicate Request. Transaction ${token} already processed.`);
-      // PubScale को 200 OK वापस भेजें ताकि वे दोबारा रिक्वेस्ट भेजना बंद करें (मगर कॉइन्स फिर से नहीं मिलेंगे!)
-      return res.status(200).send('HTTP 200 OK: Already Processed');
+    // केवळ GET आणि POST पॅरामीटर्सना परवानगी देणे
+    if (req.method !== 'GET' && req.method !== 'POST') {
+        return res.status(405).send('HTTP Method Not Allowed');
     }
 
-    // 5. User Verify करें
-    const userDocRef = db.collection('users').doc(user_id);
-    const userSnapshot = await userDocRef.get();
+    try {
+        const db = getFirestoreDB();
+        
+        // PubScale पोस्टबॅक पॅरामीटर्स मिळवा
+        const { user_id, value, token, signature } = req.query;
 
-    if (!userSnapshot.exists) {
-      console.error(`S2S Alert: User with ID ${user_id} not found in database.`);
-      return res.status(404).send('HTTP 404 Not Found: User Account does not exist');
+        console.log(`Received Postback -> User: ${user_id}, Coins: ${value}, Token/ClickID: ${token}, Signature: ${signature}`);
+
+        // १. पॅरामीटर्स व्हेरिफिकेशन
+        if (!user_id || !value || !token || !signature) {
+            return res.status(400).send('HTTP 400 Bad Request: Missing user_id, value, token, or signature');
+        }
+
+        const coinsValue = parseInt(value, 10);
+        if (isNaN(coinsValue) || coinsValue <= 0) {
+            return res.status(400).send('HTTP 400 Bad Request: Invalid coins value');
+        }
+
+        // २. सिक्युरिटी सिग्नेचर व्हेरिफिकेशन
+        const s2sSecret = process.env.PUBSCALE_SECRET_KEY || process.env.PUBSCALE_SECURITY_TOKEN || "PUBSCALE_SECRET_KEY";
+
+        // कॉम्बिनेशन A: user_id + value + token + secret
+        const dataStringA = `${user_id}${value}${token}${s2sSecret}`;
+        const generatedSignatureA = crypto.createHash('md5').update(dataStringA).digest('hex');
+
+        // कॉम्बिनेशन B: value + user_id + token + secret
+        const dataStringB = `${value}${user_id}${token}${s2sSecret}`;
+        const generatedSignatureB = crypto.createHash('md5').update(dataStringB).digest('hex');
+
+        const signatureMatches = 
+            (signature.toLowerCase() === generatedSignatureA) || 
+            (signature.toLowerCase() === generatedSignatureB);
+
+        if (!signatureMatches) {
+            console.error(`Signature mismatch! Expected A: ${generatedSignatureA}, Received: ${signature}`);
+            return res.status(403).send('HTTP 403 Forbidden: Signature verification failed.');
+        }
+
+        // ३. डुप्लिकेट रिप्ले प्रोटेक्शन (Prevent double spending)
+        const txDocRef = db.collection('transactions').doc(`pubscale_${token}`);
+        const txSnapshot = await txDocRef.get();
+
+        if (txSnapshot.exists) {
+            console.log(`Transaction ${token} already processed before.`);
+            return res.status(200).send('HTTP 200 OK: Already Processed Successfully');
+        }
+
+        // ४. युझर डॉक्युमेंट चेक करणे आणि नसल्यास नवीन तयार करणे (On-the-fly provision)
+        const userDocRef = db.collection('users').doc(user_id);
+        const userSnapshot = await userDocRef.get();
+
+        // ५. ट्रान्झॅक्शन चालवून कॉइन्स वाढवा आणि लॉग नोंदवा
+        await db.runTransaction(async (transaction) => {
+            let currentCoins = 0;
+            if (userSnapshot.exists) {
+                const userDoc = await transaction.get(userDocRef);
+                currentCoins = userDoc.data().coins || 0;
+            } else {
+                console.log(`User ${user_id} does not exist in Firestore yet. Provisioning user document automatically for smooth live testing.`);
+            }
+
+            const newCoins = currentCoins + coinsValue;
+
+            // युझरचे कॉइन्स अपडेट / सेट करा
+            transaction.set(userDocRef, { 
+                coins: newCoins,
+                uid: user_id,
+                updatedAt: Date.now()
+            }, { merge: true });
+
+            // ट्रान्झॅक्शन हिस्ट्री लॉग सुरक्षित ठेवा
+            const currentTimestamp = Date.now();
+            const transactionPayload = {
+                uid: user_id,
+                type: "EARN",
+                title: "PubScale Offerwall Reward",
+                details: `Approved (Offer Token/Click: ${token})`,
+                coinsAmount: coinsValue,
+                status: "SUCCESS",
+                timestamp: currentTimestamp
+            };
+
+            transaction.set(txDocRef, transactionPayload);
+        });
+
+        console.log(`Successfully credited ${coinsValue} coins to user: ${user_id}`);
+        return res.status(200).send('HTTP 200 OK: Reward credited successfully to the wallet');
+
+    } catch (error) {
+        console.error("Callback Execution Failure:", error);
+        return res.status(500).send(`HTTP 500 Internal Error: ${error.message}`);
     }
-
-    // 6. DB Transaction: Coins Increment और Transaction Logging
-    await db.runTransaction(async (transaction) => {
-      // यूज़र डेटा पढ़ें
-      const userDoc = await transaction.get(userDocRef);
-      const currentCoins = userDoc.data().coins || 0;
-      const newCoins = currentCoins + coinsValue;
-
-      // Coins बढ़ाएं
-      transaction.update(userDocRef, { coins: newCoins });
-
-      // Transaction History Log बनाएं
-      const currentTimestamp = Date.now();
-      const transactionPayload = {
-        uid: user_id,
-        type: "EARN",
-        title: "PubScale Offerwall Reward",
-        details: `Approved (Offer Token: ${token})`,
-        coinsAmount: coinsValue,
-        status: "SUCCESS",
-        timestamp: currentTimestamp
-      };
-
-      transaction.set(txDocRef, transactionPayload);
-    });
-
-    console.log(`S2S Success: Successfully credited ${coinsValue} coins to user ${user_id}`);
-    return res.status(200).send('HTTP 200 OK: Reward credited successfully');
-
-  } catch (error) {
-    console.error("S2S Error processing transaction in Firestore:", error);
-    return res.status(500).send('HTTP 500 Internal Server Error');
-  }
 };
