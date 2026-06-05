@@ -18,7 +18,7 @@ const db = admin.firestore();
 
 // 2. Pubscale Secret Key (यह आपको Pubscale dashboard पर S2S config में मिलेगी)
 // इसे Vercel environment variables में "PUBSCALE_SECRET_KEY" नाम से सेव करें
-const PUBSCALE_S2S_SECRET = process.env.PUBSCALE_SECRET_KEY || "YOUR_SHARED_SECRET_KEY";
+const PUBSCALE_S2S_SECRET = process.env.PUBSCALE_SECRET_KEY || "☠️";
 
 module.exports = async (req, res) => {
   // केवल GET/POST Requests allow करें (S2S triggers standard GET/POST query params)
