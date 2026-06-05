@@ -1,5 +1,8 @@
 {
+  "name": "vrewardx-backend",
+  "version": "1.0.0",
+  "private": true,
   "dependencies": {
-    "firebase-admin": "^11.8.0"
+    "firebase-admin": "^12.0.0"
   }
 }
