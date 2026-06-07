@@ -240,32 +240,6 @@ function getDashboardHtml(envDomain, logs, firebaseActive, firebaseMsg) {
             <p style="font-size: 0.9em; color: #8b949e;">Select <strong>GET</strong> as request method inside the PubScale panel setup.</p>
         </div>
 
-        <!-- ENV VARIABLE INSTRUCTIONS CARD -->
-        <div class="card">
-            <div class="card-title">🔒 Vercel Dashboard Environment Variables Config</div>
-            <p>To avoid copy-paste JSON failures on Vercel, please add these environment variables individually inside your **Vercel Project Settings ➔ Environment Variables** page. <strong>Do not upload the service account file or paste full JSON as one key</strong>, use the separate keys below:</p>
-            
-            <div class="env-item">
-                <div class="env-name">1. PUBSCALE_S2S_SECRET</div>
-                <p style="margin: 4px 0; font-size: 0.9em; color: #8b949e;">Your S2S secret key from PubScale Dashboard (used to verify hashes securely and prevent fraud).</p>
-            </div>
-
-            <div class="env-item">
-                <div class="env-name">2. FIREBASE_PROJECT_ID</div>
-                <p style="margin: 4px 0; font-size: 0.9em; color: #8b949e;">Enter: <code>vrewardx</code></p>
-            </div>
-
-            <div class="env-item">
-                <div class="env-name">3. FIREBASE_CLIENT_EMAIL</div>
-                <p style="margin: 4px 0; font-size: 0.9em; color: #8b949e;">Enter: <code>firebase-adminsdk-fbsvc@vrewardx.iam.gserviceaccount.com</code></p>
-            </div>
-
-            <div class="env-item">
-                <div class="env-name">4. FIREBASE_PRIVATE_KEY</div>
-                <p style="margin: 4px 0; font-size: 0.9em; color: #8b949e;">Copy your entire private key starting from <code>-----BEGIN PRIVATE KEY-----</code> up to <code>-----END PRIVATE KEY-----</code> (including all lines, exact as provided by Firebase console).</p>
-            </div>
-        </div>
-
         <h2>Incoming Webhook Activity Logs (Live Stream)</h2>
         <p style="color: #8b949e; font-size: 0.9em;">Latest transactions requested from Pubscale are displayed below (sourced in real-time from Cloud Firestore):</p>
         <table class="log-table">
