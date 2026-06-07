@@ -4,6 +4,10 @@
     {
       "src": "/api/callback",
       "dest": "api/callback.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "api/index.js"
     }
   ]
 }
