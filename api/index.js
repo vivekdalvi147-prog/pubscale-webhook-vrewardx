@@ -69,7 +69,7 @@ function getDashboardHtml(envDomain, logs, firebaseActive, firebaseMsg) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>vRewardX S2S Webhook Panel</title>
+    <title>vRewardX S2S Webhook Panel | made by vivek</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
