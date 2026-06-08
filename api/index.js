@@ -36,7 +36,7 @@ try {
   console.error("Firebase Admin init error:", e);
 }
 
-function getDashboardHtml(envDomain, logs, firebaseActive, firebaseMsg) {
+function getDashboardHtml(envDomain, logs, users, transactions, firebaseActive, firebaseMsg) {
   const logsRows = logs.length === 0 
     ? `<tr><td colspan="6" style="text-align: center; color: #8b949e; padding: 20px;">Waiting for test callbacks from PubScale dashboard...</td></tr>`
     : logs.map(item => `
@@ -62,6 +62,49 @@ function getDashboardHtml(envDomain, logs, firebaseActive, firebaseMsg) {
         </td>
       </tr>
     `).join('');
+
+  const usersRows = users.length === 0
+    ? `<tr><td colspan="5" style="text-align: center; color: #8b949e; padding: 20px;">No registered users synchronized yet...</td></tr>`
+    : users.map(item => `
+      <tr>
+        <td><strong style="color: #ffffff;">${item.displayName}</strong></td>
+        <td><code>${item.uid}</code></td>
+        <td><span style="color: #8b949e;">${item.email}</span></td>
+        <td><strong style="color: #58a6ff;">${item.coins} Coins</strong></td>
+        <td><code style="font-size: 0.85em; color: #ff7b72;">${item.deviceId}</code></td>
+      </tr>
+    `).join('');
+
+  const transactionsRows = transactions.length === 0
+    ? `<tr><td colspan="6" style="text-align: center; color: #8b949e; padding: 20px;">No S2S transaction logs found in database...</td></tr>`
+    : transactions.map(item => {
+        const formattedDate = new Date(item.timestamp).toLocaleString();
+        const badgeColor = item.type === "REDEEM" ? "color: #f85149;" : "color: #3fb950;";
+        return `
+      <tr>
+        <td>${formattedDate}</td>
+        <td><code>${item.uid}</code></td>
+        <td><strong style="${badgeColor}">${item.type}</strong></td>
+        <td>
+          <div style="font-weight: bold; color: #ffffff;">${item.title}</div>
+          <small style="color: var(--text-secondary); font-size: 0.85em;">${item.details}</small>
+        </td>
+        <td><strong style="${badgeColor}">${item.type === "REDEEM" ? "-" : "+"}${item.coinsAmount} Coins</strong></td>
+        <td>
+          ${item.status === "SUCCESS" 
+            ? `<span class="success-text" style="font-size: 0.9em; font-weight: bold;">✓ APPROVED</span>`
+            : item.status === "PENDING"
+              ? `<span style="color: #d29922; font-size: 0.9em; font-weight: bold;">⏳ PENDING</span>`
+              : `<span class="error-text" style="font-size: 0.9em; font-weight: bold;">✗ REJECTED</span>`
+          }
+        </td>
+      </tr>
+        `;
+      }).join('');
+
+  const totalRegisteredUsers = users.length;
+  const pendingRedemptions = transactions.filter(t => t.type === "REDEEM" && t.status === "PENDING").length;
+  const totalCoinsInCirculation = users.reduce((acc, curr) => acc + (curr.coins || 0), 0);
 
   return `
 <!DOCTYPE html>
@@ -392,6 +435,50 @@ function getDashboardHtml(envDomain, logs, firebaseActive, firebaseMsg) {
             border-color: #8b949e;
         }
 
+        /* TABS STYLING */
+        .tab-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 30px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--card-border);
+            padding-bottom: 10px;
+            overflow-x: auto;
+        }
+
+        .tab-btn {
+            background-color: transparent;
+            border: 1px solid transparent;
+            color: var(--text-secondary);
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 0.95em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .tab-btn:hover {
+            color: #ffffff;
+            background-color: #1f242d;
+        }
+
+        .tab-btn.active {
+            color: var(--primary-blue);
+            background-color: #1f242d;
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
         /* LOGS TABLE CSS */
         .table-responsive {
             overflow-x: auto;
@@ -457,6 +544,21 @@ function getDashboardHtml(envDomain, logs, firebaseActive, firebaseMsg) {
                 hint.style.display = 'none';
             }, 2000);
         }
+
+        function switchTab(tabId) {
+            // Hide all tabs
+            const contents = document.querySelectorAll(".tab-content");
+            contents.forEach(el => el.classList.remove("active"));
+            
+            const buttons = document.querySelectorAll(".tab-btn");
+            buttons.forEach(el => el.classList.remove("active"));
+            
+            // Show target
+            document.getElementById(tabId).classList.add("active");
+            
+            // Activate button styling
+            event.currentTarget.classList.add("active");
+        }
     </script>
 </head>
 <body>
@@ -487,7 +589,7 @@ function getDashboardHtml(envDomain, logs, firebaseActive, firebaseMsg) {
             <div class="brand-logo-area">
                 <img class="brand-logo-img" src="https://i.ibb.co/TDMwv5QD/Generated-Image-June052026-10-45-AM.jpg" alt="vRewardX Logo">
                 <div class="brand-title-wrap">
-                    <h1>vRewardX Webhook Console <span class="developer-badge">v2.0</span></h1>
+                    <h1>vRewardX Webhook Console <span class="developer-badge">v2.1</span></h1>
                     <span style="font-size: 0.8em; color: var(--text-secondary);">made by vivek dalvi</span>
                 </div>
             </div>
@@ -517,16 +619,16 @@ function getDashboardHtml(envDomain, logs, firebaseActive, firebaseMsg) {
         <!-- STATS / METRICS VIEW (LOOKS ADVANCED) -->
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="stat-value">GET</div>
-                <div class="stat-label">Request Method</div>
+                <div class="stat-value">${totalRegisteredUsers}</div>
+                <div class="stat-label">Verified Users Sync</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value">HTTPS</div>
-                <div class="stat-label">SSL Protocols</div>
+                <div class="stat-value" style="color: #79c0ff;">${totalCoinsInCirculation}</div>
+                <div class="stat-label">Total Coins in Circulation</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value" style="color: #3fb950;">Active</div>
-                <div class="stat-label">Integration Hook</div>
+                <div class="stat-value" style="color: #ff7b72;">${pendingRedemptions}</div>
+                <div class="stat-label">Pending Payout Claims</div>
             </div>
         </div>
 
@@ -564,26 +666,79 @@ function getDashboardHtml(envDomain, logs, firebaseActive, firebaseMsg) {
             <p style="font-size: 0.85em; color: var(--text-secondary); margin-bottom: 0;">⚡ Select <strong>GET</strong> as request method inside the PubScale panel setup.</p>
         </div>
 
-        <!-- ACTIVITY LOGS TABLE -->
-        <h2>Incoming Webhook Activity Logs (Live Stream)</h2>
-        <p style="color: var(--text-secondary); font-size: 0.9em; margin-bottom: 15px;">Latest transactions requested from Pubscale are displayed below (sourced in real-time from Cloud Firestore):</p>
-        
-        <div class="table-responsive">
-            <table class="log-table">
-                <thead>
-                    <tr>
-                        <th>Timestamp (UTC)</th>
-                        <th>User ID (Uid)</th>
-                        <th>Coins Credited</th>
-                        <th>Token (Transaction)</th>
-                        <th>Integrity Verification</th>
-                        <th>Database Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${logsRows}
-                </tbody>
-            </table>
+        <!-- TAB MENU SYSTEM -->
+        <div class="tab-container">
+            <button class="tab-btn active" onclick="switchTab('pubscale-logs')">🛡️ Pubscale hook webhooks</button>
+            <button class="tab-btn" onclick="switchTab('app-users')">👥 Registered App Users (${totalRegisteredUsers})</button>
+            <button class="tab-btn" onclick="switchTab('s2s-transactions')">📜 Secure S2S Activity Logs (${transactions.length})</button>
+        </div>
+
+        <!-- TAB CONTENT: PUBSCALE WEBHOOKS -->
+        <div id="pubscale-logs" class="tab-content active">
+            <h2>Incoming Webhook Activity Logs (Live Stream)</h2>
+            <p style="color: var(--text-secondary); font-size: 0.9em; margin-bottom: 15px;">Latest postbacks synchronized in real-time from Cloud Firestore:</p>
+            <div class="table-responsive">
+                <table class="log-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp (UTC)</th>
+                            <th>User ID (Uid)</th>
+                            <th>Coins Credited</th>
+                            <th>Token (Transaction)</th>
+                            <th>Integrity Verification</th>
+                            <th>Database Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${logsRows}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- TAB CONTENT: APPLICATION USERS -->
+        <div id="app-users" class="tab-content">
+            <h2>Authorized App User Base</h2>
+            <p style="color: var(--text-secondary); font-size: 0.9em; margin-bottom: 15px;">Secure real-time ledger of synchronized dynamic user balances:</p>
+            <div class="table-responsive">
+                <table class="log-table">
+                    <thead>
+                        <tr>
+                            <th>User Name</th>
+                            <th>User ID (Uid)</th>
+                            <th>Email Address</th>
+                            <th>Coin Balance</th>
+                            <th>Registered Device ID</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${usersRows}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- TAB CONTENT: S2S TRANSACTION HISTORY -->
+        <div id="s2s-transactions" class="tab-content">
+            <h2>Server-to-Server Transaction Streams</h2>
+            <p style="color: var(--text-secondary); font-size: 0.9em; margin-bottom: 15px;">System transactions ledger tracking Registration Welcome Bonuses (50 Coins) & secure Cashouts:</p>
+            <div class="table-responsive">
+                <table class="log-table">
+                    <thead>
+                        <tr>
+                            <th>Date / Timestamp</th>
+                            <th>User ID (Uid)</th>
+                            <th>Transaction Type</th>
+                            <th>Activity Details</th>
+                            <th>Coins Transferred</th>
+                            <th>Server Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${transactionsRows}
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <footer>
@@ -608,6 +763,26 @@ function getDashboardHtml(envDomain, logs, firebaseActive, firebaseMsg) {
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
 
+        // Watch Authentication State
+        auth.onAuthStateChanged((user) => {
+            const loginSection = document.getElementById("login-container");
+            const dashboardSection = document.getElementById("dashboard-container");
+
+            if (user) {
+                // Hide Login, Show Dashboard
+                loginSection.style.display = "none";
+                dashboardSection.style.display = "block";
+                
+                // Update profile card details
+                document.getElementById("user-avatar").src = user.photoURL || 'https://via.placeholder.com/32';
+                document.getElementById("user-name").innerText = user.displayName || 'Developer';
+            } else {
+                // Show Login, Hide Dashboard
+                loginSection.style.display = "flex";
+                dashboardSection.style.display = "none";
+            }
+        });
+
         // Sign in with Google Popup
         function googleLogin() {
             const provider = new firebase.auth.GoogleAuthProvider();
@@ -629,26 +804,6 @@ function getDashboardHtml(envDomain, logs, firebaseActive, firebaseMsg) {
                 console.error("Logout error: ", error);
             });
         }
-
-        // Watch Authentication State
-        auth.onAuthStateChanged((user) => {
-            const loginSection = document.getElementById("login-container");
-            const dashboardSection = document.getElementById("dashboard-container");
-
-            if (user) {
-                // Hide Login, Show Dashboard
-                loginSection.style.display = "none";
-                dashboardSection.style.display = "block";
-                
-                // Update profile card details
-                document.getElementById("user-avatar").src = user.photoURL || 'https://via.placeholder.com/32';
-                document.getElementById("user-name").innerText = user.displayName || 'Developer';
-            } else {
-                // Show Login, Hide Dashboard
-                loginSection.style.display = "flex";
-                dashboardSection.style.display = "none";
-            }
-        });
     </script>
 </body>
 </html>
@@ -659,14 +814,18 @@ module.exports = async (req, res) => {
   const envDomain = req.headers['host'] || 'pubscale-webhook-vrewardx.vercel.app';
   
   let logs = [];
+  let users = [];
+  let transactions = [];
+
   if (firebaseInitialized && db) {
     try {
-      const snapshot = await db.collection("pubscale_callbacks")
+      // 1. Fetch PubScale callbacks
+      const callbacksSnapshot = await db.collection("pubscale_callbacks")
         .orderBy("created_at", "desc")
         .limit(15)
         .get();
         
-      snapshot.forEach(doc => {
+      callbacksSnapshot.forEach(doc => {
         const data = doc.data();
         logs.push({
           timestamp: data.timestamp || "N/A",
@@ -683,9 +842,61 @@ module.exports = async (req, res) => {
     } catch (err) {
       console.error("Error reading logs from Firestore:", err);
     }
+
+    try {
+      // 2. Fetch Users
+      const usersSnapshot = await db.collection("users")
+        .limit(100)
+        .get();
+        
+      usersSnapshot.forEach(doc => {
+        const data = doc.data();
+        users.push({
+          uid: doc.id,
+          displayName: data.displayName || "Unknown User",
+          email: data.email || "No Email",
+          coins: data.coins !== undefined ? data.coins : 0,
+          deviceId: data.deviceId || "Empty"
+        });
+      });
+      // Sort users by coin balance descending
+      users.sort((a, b) => b.coins - a.coins);
+    } catch (err) {
+      console.error("Error reading users from Firestore:", err);
+    }
+
+    try {
+      // 3. Fetch Transactions (Welcome / Redeems) and sort descending in memory to prevent index failure
+      const txSnapshot = await db.collection("transactions")
+        .limit(150)
+        .get();
+        
+      txSnapshot.forEach(doc => {
+        const data = doc.data();
+        let ts = data.timestamp;
+        if (!ts) {
+          ts = Date.now();
+        } else if (ts && typeof ts.toDate === "function") {
+          ts = ts.toDate().getTime(); // handle firestore Timestamp objects
+        }
+        transactions.push({
+          uid: data.uid || "N/A",
+          type: data.type || "N/A",
+          title: data.title || "N/A",
+          details: data.details || "N/A",
+          coinsAmount: data.coinsAmount !== undefined ? data.coinsAmount : 0,
+          status: data.status || "N/A",
+          timestamp: ts
+        });
+      });
+      transactions.sort((a, b) => b.timestamp - a.timestamp);
+      transactions = transactions.slice(0, 30);
+    } catch (err) {
+      console.error("Error reading transactions from Firestore:", err);
+    }
   }
 
-  const html = getDashboardHtml(envDomain, logs, firebaseInitialized, firebaseStatus);
+  const html = getDashboardHtml(envDomain, logs, users, transactions, firebaseInitialized, firebaseStatus);
   res.setHeader('Content-Type', 'text/html');
   return res.status(200).send(html);
 };
