@@ -534,6 +534,24 @@ function getDashboardHtml(envDomain, logs, firebaseActive, firebaseMsg) {
             ${firebaseMsg}
         </p>
 
+        <!-- SECURE S2S APIs DEPLOYED INFO CARD -->
+        <div class="card">
+            <div class="card-title">🛡️ Secure S2S Auth Verification Hook APIs Active</div>
+            <p style="color: var(--text-secondary); font-size: 0.9em; margin-bottom: 12px;">This backend server implements strict, server-side validation to safeguard against database tampering or hacked app attempts:</p>
+            <div style="font-size: 0.85em; display: flex; flex-direction: column; gap: 12px;">
+                <div style="border-bottom: 1px dashed var(--card-border); padding-bottom: 8px;">
+                    <strong style="color: var(--primary-blue)">1. Google Profile Signups Welcomer (POST METHOD)</strong><br>
+                    <code style="display: block; margin-top: 4px; padding: 4px 8px;">https://${envDomain}/api/signup</code>
+                    <span style="color: var(--text-secondary); display: block; margin-top: 4px;">Decrypts and verifies standard Google Auth ID Tokens. Hardcodes initial welcome gifts strictly to 50 coins securely on the database layer.</span>
+                </div>
+                <div>
+                    <strong style="color: var(--primary-blue)">2. Atomic Payout/Redeem Controller (POST METHOD)</strong><br>
+                    <code style="display: block; margin-top: 4px; padding: 4px 8px;">https://${envDomain}/api/redeem</code>
+                    <span style="color: var(--text-secondary); display: block; margin-top: 4px;">Executes strict Firestore transaction routines, guaranteeing user balances really possess the required coins before deducting them.</span>
+                </div>
+            </div>
+        </div>
+
         <!-- SECURE S2S CONFIG CARD -->
         <div class="card">
             <div class="card-title">🔗 Enter this Callback URL in PubScale Dashboard</div>
