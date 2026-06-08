@@ -1,6 +1,6 @@
 const admin = require('firebase-admin');
 
-// Initialize Firebase Admin SDK
+// Initialize Firebase Admin SDK (Kept for backend verification & other API routes)
 let db = null;
 let firebaseInitialized = false;
 let firebaseStatus = "Not Initialized";
@@ -29,85 +29,16 @@ try {
     firebaseInitialized = true;
     firebaseStatus = `Connected successfully to firestore project: '${projectId}'`;
   } else {
-    firebaseStatus = "Passive Mode (Logging Only). Configure FIREBASE credentials in Vercel to credit real coins.";
+    firebaseStatus = "Passive Mode. Configure FIREBASE credentials in Vercel.";
   }
 } catch (e) {
   firebaseStatus = `Firebase initialization error: ${e.message}`;
   console.error("Firebase Admin init error:", e);
 }
 
-function getDashboardHtml(envDomain, logs, users, transactions, firebaseActive, firebaseMsg) {
-  const logsRows = logs.length === 0 
-    ? `<tr><td colspan="6" style="text-align: center; color: #8b949e; padding: 20px;">Waiting for test callbacks from PubScale dashboard...</td></tr>`
-    : logs.map(item => `
-      <tr>
-        <td>${item.timestamp}</td>
-        <td><code>${item.user_id}</code></td>
-        <td><strong style="color: #79c0ff;">+${item.value} Coins</strong></td>
-        <td><code style="font-size: 0.85em;">${item.token}</code></td>
-        <td>
-          ${item.verified 
-            ? `<span class="success-text">✓ Verified Signature</span><br><small style="color: #8b949e; font-size: 0.85em;">Formula: ${item.formula}</small>` 
-            : `<span class="error-text">✗ Verification Mismatch</span><br>`
-          }
-        </td>
-        <td>
-          ${item.verified 
-            ? (item.db_success 
-                ? `<span class="success-text">✓ Real Value Credited</span>` 
-                : `<span class="error-text">✗ Failed db update</span>`
-              ) + `<br><small style="color: #8b949e; font-size: 0.85em;">${item.db_msg}</small>`
-            : `<span style="color: #8b949e;">Blocked</span>`
-          }
-        </td>
-      </tr>
-    `).join('');
-
-  const usersRows = users.length === 0
-    ? `<tr><td colspan="5" style="text-align: center; color: #8b949e; padding: 20px;">No registered users synchronized yet...</td></tr>`
-    : users.map(item => `
-      <tr>
-        <td><strong style="color: #ffffff;">${item.displayName}</strong></td>
-        <td><code>${item.uid}</code></td>
-        <td><span style="color: #8b949e;">${item.email}</span></td>
-        <td><strong style="color: #58a6ff;">${item.coins} Coins</strong></td>
-        <td><code style="font-size: 0.85em; color: #ff7b72;">${item.deviceId}</code></td>
-      </tr>
-    `).join('');
-
-  const transactionsRows = transactions.length === 0
-    ? `<tr><td colspan="6" style="text-align: center; color: #8b949e; padding: 20px;">No S2S transaction logs found in database...</td></tr>`
-    : transactions.map(item => {
-        const formattedDate = new Date(item.timestamp).toLocaleString();
-        const badgeColor = item.type === "REDEEM" ? "color: #f85149;" : "color: #3fb950;";
-        return `
-      <tr>
-        <td>${formattedDate}</td>
-        <td><code>${item.uid}</code></td>
-        <td><strong style="${badgeColor}">${item.type}</strong></td>
-        <td>
-          <div style="font-weight: bold; color: #ffffff;">${item.title}</div>
-          <small style="color: var(--text-secondary); font-size: 0.85em;">${item.details}</small>
-        </td>
-        <td><strong style="${badgeColor}">${item.type === "REDEEM" ? "-" : "+"}${item.coinsAmount} Coins</strong></td>
-        <td>
-          ${item.status === "SUCCESS" 
-            ? `<span class="success-text" style="font-size: 0.9em; font-weight: bold;">✓ APPROVED</span>`
-            : item.status === "PENDING"
-              ? `<span style="color: #d29922; font-size: 0.9em; font-weight: bold;">⏳ PENDING</span>`
-              : `<span class="error-text" style="font-size: 0.9em; font-weight: bold;">✗ REJECTED</span>`
-          }
-        </td>
-      </tr>
-        `;
-      }).join('');
-
-  const totalRegisteredUsers = users.length;
-  const pendingRedemptions = transactions.filter(t => t.type === "REDEEM" && t.status === "PENDING").length;
-  const totalCoinsInCirculation = users.reduce((acc, curr) => acc + (curr.coins || 0), 0);
-
-  return `
-<!DOCTYPE html>
+// Function to generate the Premium Tailwind HTML
+function getDashboardHtml(envDomain) {
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -134,7 +65,7 @@ function getDashboardHtml(envDomain, logs, users, transactions, firebaseActive, 
             }
         }
     </script>
-    <!-- Google Fonts (Plus Jakarta Sans) -->
+    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -143,31 +74,16 @@ function getDashboardHtml(envDomain, logs, users, transactions, firebaseActive, 
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <style>
-        body {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            background-color: #070A13;
-            color: #E2E8F0;
-        }
-        .glow-btn:hover {
-            box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
-        }
-        .glow-success:hover {
-            box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
-        }
-        .glow-error:hover {
-            box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
-        }
-        .animate-fade-in {
-            animation: fadeIn 0.3s ease-out forwards;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #070A13; color: #E2E8F0; }
+        .glow-btn:hover { box-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
+        .glow-success:hover { box-shadow: 0 0 15px rgba(16, 185, 129, 0.4); }
+        .glow-error:hover { box-shadow: 0 0 15px rgba(239, 68, 68, 0.4); }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body class="min-h-screen pb-16">
-    <!-- Sleek Top Branding Header -->
+    <!-- Header -->
     <header class="border-b border-brand-border bg-brand-bg/80 backdrop-blur sticky top-0 z-40 px-6 py-4">
         <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
             <div class="flex items-center gap-3">
@@ -176,7 +92,7 @@ function getDashboardHtml(envDomain, logs, users, transactions, firebaseActive, 
                 </div>
                 <div>
                     <h1 class="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
-                        vRewardX <span class="bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent text-xs font-semibold px-2 py-0.5 border border-brand-border rounded-full bg-slate-900/60">Server & Webhook Administration</span>
+                        vRewardX <span class="bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent text-xs font-semibold px-2 py-0.5 border border-brand-border rounded-full bg-slate-900/60">Server & Webhook Admin</span>
                     </h1>
                     <p class="text-[11px] text-slate-400">Serverless Control Center for Real-time Management & S2S Postbacks</p>
                 </div>
@@ -187,7 +103,6 @@ function getDashboardHtml(envDomain, logs, users, transactions, firebaseActive, 
                     <span class="w-2.5 h-2.5 bg-brand-error rounded-full animate-ping"></span>
                     <span class="text-xs font-semibold text-slate-300">Database Offline</span>
                 </div>
-                <!-- Logged In User Avatar (Hidden by default) -->
                 <div id="user-profile" class="hidden items-center gap-2 bg-slate-900/80 border border-brand-border rounded-xl p-1.5 pr-4">
                     <img id="user-avatar" class="w-8 h-8 rounded-lg object-cover" src="" alt="Admin">
                     <div class="flex flex-col">
@@ -200,79 +115,57 @@ function getDashboardHtml(envDomain, logs, users, transactions, firebaseActive, 
     </header>
 
     <main class="max-w-7xl mx-auto px-6 mt-8">
-        <!-- Credentials Handshake / Welcome Panel -->
+        <!-- Login Panel -->
         <section id="step-setup" class="bg-brand-card border border-brand-border rounded-3xl p-8 max-w-md mx-auto shadow-2xl relative overflow-hidden animate-fade-in">
             <div class="absolute top-0 right-0 w-64 h-64 bg-brand-accent/10 rounded-full blur-3xl -z-10"></div>
-            
             <div class="text-center mb-6">
                 <div class="w-16 h-16 bg-brand-accent/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-brand-accent/20">
                     <i data-lucide="shield-check" class="text-brand-accent w-8 h-8 animate-pulse"></i>
                 </div>
                 <h2 class="text-2xl font-bold text-white mb-2">vRewardX Portal</h2>
-                <p class="text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">
-                    Access restricted to authorized server administrators only. Fully audited S2S connection.
-                </p>
+                <p class="text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">Access restricted to authorized server administrators only.</p>
             </div>
 
-            <!-- Loading Indicator -->
             <div id="login-loading-screen" class="py-8 text-center">
                 <div class="flex items-center justify-center gap-2 text-brand-accent text-sm font-semibold animate-pulse mb-2">
-                    <span class="w-1.5 h-1.5 bg-brand-accent rounded-full animate-ping"></span>
-                    Initializing secure handshake...
+                    <span class="w-1.5 h-1.5 bg-brand-accent rounded-full animate-ping"></span> Initializing secure handshake...
                 </div>
-                <p class="text-[11px] text-slate-500">Checking Firebase system configuration...</p>
             </div>
 
-            <!-- Authentic Login Form -->
             <form id="admin-login-form" class="hidden space-y-4 text-left" onsubmit="handleAdminLogin(event)">
-                <!-- Google Sign-In Button -->
                 <button type="button" id="btn-google-login" onclick="handleGoogleLogin()" class="w-full bg-slate-900 border border-brand-border hover:bg-slate-800/80 text-white font-bold text-sm tracking-wide py-3.5 rounded-xl transition active:scale-95 flex items-center justify-center gap-3">
-                     <svg class="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                          <path fill="#EA4335" d="M12.24 10.285V14.4h6.887c-.648 2.41-2.519 4.114-5.136 4.114A5.79 5.79 0 0 1 8.2 12.725a5.79 5.79 0 0 1 5.79-5.79c2.518 0 4.417 1.058 5.373 1.971l3.223-3.223C20.612 3.842 17.583 2.5 13.99 2.5A10.24 10.24 0 0 0 3.75 12.74a10.24 10.24 0 0 0 10.24 10.24c5.79 0 10.117-4.07 10.117-10.24 0-.649-.071-1.123-.195-1.455H12.24z"/>
-                     </svg>
+                     <svg class="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="#EA4335" d="M12.24 10.285V14.4h6.887c-.648 2.41-2.519 4.114-5.136 4.114A5.79 5.79 0 0 1 8.2 12.725a5.79 5.79 0 0 1 5.79-5.79c2.518 0 4.417 1.058 5.373 1.971l3.223-3.223C20.612 3.842 17.583 2.5 13.99 2.5A10.24 10.24 0 0 0 3.75 12.74a10.24 10.24 0 0 0 10.24 10.24c5.79 0 10.117-4.07 10.117-10.24 0-.649-.071-1.123-.195-1.455H12.24z"/></svg>
                      <span>Sign In with Google Account</span>
                 </button>
-
-                <!-- Divider -->
                 <div class="flex items-center my-4">
-                    <hr class="w-full border-brand-border/60">
-                    <span class="px-3 text-[10px] uppercase text-slate-500 font-extrabold tracking-widest whitespace-nowrap">or use admin password</span>
-                    <hr class="w-full border-brand-border/60">
+                    <hr class="w-full border-brand-border/60"><span class="px-3 text-[10px] uppercase text-slate-500 font-extrabold tracking-widest whitespace-nowrap">or use admin password</span><hr class="w-full border-brand-border/60">
                 </div>
-
                 <div>
                     <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Admin Gmail Address</label>
                     <div class="relative">
                         <i data-lucide="mail" class="absolute left-3.5 top-3.5 text-slate-500 w-4 h-4"></i>
-                        <input type="email" id="login-email" required value="vivekdalvi147@gmail.com" placeholder="example@gmail.com" class="w-full bg-slate-950/80 border border-brand-border rounded-xl pl-10 pr-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-accent/50 focus:border-brand-accent transition">
+                        <input type="email" id="login-email" required value="vivekdalvi147@gmail.com" class="w-full bg-slate-950/80 border border-brand-border rounded-xl pl-10 pr-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-accent/50 focus:border-brand-accent transition">
                     </div>
                 </div>
-
                 <div>
                     <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Secret Portal Password</label>
                     <div class="relative">
                         <i data-lucide="lock" class="absolute left-3.5 top-3.5 text-slate-500 w-4 h-4"></i>
                         <input type="password" id="login-password" required placeholder="••••••••••••" class="w-full bg-slate-950/80 border border-brand-border rounded-xl pl-10 pr-12 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-accent/50 focus:border-brand-accent transition">
-                        <button type="button" onclick="togglePasswordVisibility()" class="absolute right-3 top-3 text-slate-500 hover:text-slate-300 transition focus:outline-none focus:ring-0">
-                            <i id="toggle-password-icon" data-lucide="eye" class="w-4 h-4"></i>
-                        </button>
                     </div>
                 </div>
-
                 <div id="login-error-container" class="hidden bg-brand-error/10 border border-brand-error/30 text-brand-error rounded-xl p-3 text-xs flex gap-2">
-                    <i data-lucide="alert-circle" class="w-4 h-4 flex-shrink-0"></i>
-                    <span id="login-error-text">Authentication credentials mismatch.</span>
+                    <i data-lucide="alert-circle" class="w-4 h-4 flex-shrink-0"></i><span id="login-error-text">Authentication failed.</span>
                 </div>
-
                 <button type="submit" id="btn-login-submit" class="w-full glow-btn bg-brand-accent hover:bg-brand-accent/90 text-white font-bold text-sm tracking-wide py-3.5 rounded-xl transition active:scale-95 flex items-center justify-center gap-2">
                     <i data-lucide="key" class="w-4 h-4"></i> Authenticate & Enter Console
                 </button>
             </form>
         </section>
 
-        <!-- Command Dashboard Room (Hidden until connected) -->
+        <!-- Dashboard -->
         <section id="admin-dashboard" class="hidden space-y-8 animate-fade-in">
-            <!-- Navigation Tabs -->
+            <!-- Tabs -->
             <div class="flex border-b border-brand-border gap-2 pb-px overflow-x-auto">
                 <button onclick="switchTab('tab-overview')" id="btn-tab-overview" class="tab-btn px-6 py-4 text-sm font-bold flex items-center gap-2 border-b-2 border-brand-accent text-white whitespace-nowrap">
                     <i data-lucide="sliders" class="w-4 h-4"></i> System Diagnostics
@@ -283,7 +176,6 @@ function getDashboardHtml(envDomain, logs, users, transactions, firebaseActive, 
                 <button onclick="switchTab('tab-claims')" id="btn-tab-claims" class="tab-btn px-6 py-4 text-sm font-bold flex items-center gap-2 border-b-2 border-transparent text-slate-400 hover:text-white transition whitespace-nowrap">
                     <i data-lucide="wallet" class="w-4 h-4"></i> Pending Claims <span id="claims-count-badge" class="ml-1.5 bg-brand-bg px-2 py-0.5 text-xs text-brand-warning rounded-full border border-brand-warning/20">0</span>
                 </button>
-                <!-- Merged Tab: S2S & Webhooks -->
                 <button onclick="switchTab('tab-webhooks')" id="btn-tab-webhooks" class="tab-btn px-6 py-4 text-sm font-bold flex items-center gap-2 border-b-2 border-transparent text-slate-400 hover:text-white transition whitespace-nowrap">
                     <i data-lucide="webhook" class="w-4 h-4"></i> S2S Webhooks & Logs
                 </button>
@@ -295,121 +187,36 @@ function getDashboardHtml(envDomain, logs, users, transactions, firebaseActive, 
                 </button>
             </div>
 
-            <!-- Tab 1: System Diagnostics Dashboard -->
+            <!-- Tab 1: Overview -->
             <div id="tab-overview" class="tab-pane space-y-8">
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <!-- Stat Card: Users -->
                     <div class="bg-brand-card border border-brand-border rounded-2xl p-6 relative overflow-hidden">
-                        <div class="absolute top-0 right-0 w-24 h-24 bg-brand-accent/5 rounded-full blur-xl"></div>
-                        <div class="flex justify-between items-start mb-4">
-                            <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Verified Accounts</span>
-                            <i data-lucide="users" class="text-brand-accent w-5 h-5"></i>
-                        </div>
+                        <div class="flex justify-between items-start mb-4"><span class="text-xs font-bold uppercase text-slate-400">Verified Accounts</span><i data-lucide="users" class="text-brand-accent w-5 h-5"></i></div>
                         <h3 id="stat-total-users" class="text-3xl font-extrabold text-white">0</h3>
-                        <p class="text-[11px] text-slate-500 mt-2">Active devices registered in server</p>
                     </div>
-
-                    <!-- Stat Card: Floating Coins -->
                     <div class="bg-brand-card border border-brand-border rounded-2xl p-6 relative overflow-hidden">
-                        <div class="absolute top-0 right-0 w-24 h-24 bg-brand-warning/5 rounded-full blur-xl"></div>
-                        <div class="flex justify-between items-start mb-4">
-                            <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Circulating Value</span>
-                            <i data-lucide="circle-dot" class="text-brand-warning w-5 h-5"></i>
-                        </div>
+                        <div class="flex justify-between items-start mb-4"><span class="text-xs font-bold uppercase text-slate-400">Circulating Value</span><i data-lucide="circle-dot" class="text-brand-warning w-5 h-5"></i></div>
                         <h3 id="stat-total-coins" class="text-3xl font-extrabold text-white">0</h3>
-                        <p class="text-[11px] text-slate-500 mt-2">Sum net amount in client wallets</p>
                     </div>
-
-                    <!-- Stat Card: Settled INR -->
                     <div class="bg-brand-card border border-brand-border rounded-2xl p-6 relative overflow-hidden">
-                        <div class="absolute top-0 right-0 w-24 h-24 bg-brand-success/5 rounded-full blur-xl"></div>
-                        <div class="flex justify-between items-start mb-4">
-                            <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Settled Payouts</span>
-                            <i data-lucide="check-circle" class="text-brand-success w-5 h-5"></i>
-                        </div>
+                        <div class="flex justify-between items-start mb-4"><span class="text-xs font-bold uppercase text-slate-400">Settled Payouts</span><i data-lucide="check-circle" class="text-brand-success w-5 h-5"></i></div>
                         <h3 id="stat-total-pro" class="text-3xl font-extrabold text-white">₹0</h3>
-                        <p class="text-[11px] text-slate-500 mt-2">Disbursed cash balance (100c = ₹1)</p>
                     </div>
-
-                    <!-- Stat Card: Pending Claims -->
                     <div class="bg-brand-card border border-brand-border rounded-2xl p-6 relative overflow-hidden border-brand-warning/15">
-                        <div class="absolute top-0 right-0 w-24 h-24 bg-brand-warning/5 rounded-full blur-xl"></div>
-                        <div class="flex justify-between items-start mb-4">
-                            <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Pending Approvals</span>
-                            <i data-lucide="clock" class="text-brand-warning w-5 h-5"></i>
-                        </div>
+                        <div class="flex justify-between items-start mb-4"><span class="text-xs font-bold uppercase text-slate-400">Pending Approvals</span><i data-lucide="clock" class="text-brand-warning w-5 h-5"></i></div>
                         <h3 id="stat-pending-claims" class="text-3xl font-extrabold text-white">0</h3>
-                        <p class="text-[11px] text-slate-400 mt-2">Cashback payouts awaiting secure audit</p>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    <!-- Instruction manual & security hints -->
-                    <div class="lg:col-span-2 bg-slate-950/60 border border-brand-border rounded-3xl p-6 relative">
-                        <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-indigo-500"></div>
-                        <h3 class="text-base font-bold text-white mb-4 flex items-center gap-2">
-                            <i data-lucide="shield-check" class="text-brand-accent"></i> Real-time Sync Security Protocol
-                        </h3>
-                        <div class="space-y-4 text-sm text-slate-400 leading-relaxed">
-                            <div class="flex gap-3">
-                                <span class="bg-brand-accent/10 border border-brand-accent/20 text-brand-accent px-2.5 py-0.5 rounded-lg text-xs font-extrabold h-fit mt-0.5">S1</span>
-                                <p><strong>Direct Firestore Tunneling:</strong> The connected Android devices establish a persistent live snapshot subscription on their credentials. When updates are saved here, Firestore triggers instantaneous client-side UI redrawing on screen.</p>
-                            </div>
-                            <div class="flex gap-3">
-                                <span class="bg-brand-accent/10 border border-brand-accent/20 text-brand-accent px-2.5 py-0.5 rounded-lg text-xs font-extrabold h-fit mt-0.5">S2</span>
-                                <p><strong>Audited Redemption Reversals:</strong> If you reject a cashback checkout claim, the transaction status is updated to <code>REJECTED</code> with audit notes, and the coin cost is credited back onto the user's balance instantly via database reconciliation!</p>
-                            </div>
-                            <div class="flex gap-3">
-                                <span class="bg-brand-accent/10 border border-brand-accent/20 text-brand-accent px-2.5 py-0.5 rounded-lg text-xs font-extrabold h-fit mt-0.5">S3</span>
-                                <p><strong>Dynamic Remote Config Controls:</strong> Enable a system-wide locks or maintenance blocker instantly. Safe and secure administration without uploading critical keys anywhere.</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Connection details card -->
-                    <div class="bg-brand-card border border-brand-border rounded-3xl p-6 flex flex-col justify-between">
-                        <div>
-                            <h3 class="text-sm font-bold text-white mb-3 flex items-center gap-2">
-                                <i data-lucide="cpu" class="text-emerald-400"></i> Server Connection Node
-                            </h3>
-                            <p class="text-xs text-slate-500 leading-relaxed mb-4">
-                                Secure Web Admin instance successfully mounted using localized sandboxed configurations. Offline local persistence prevents key exposure.
-                            </p>
-                        </div>
-                        
-                        <div class="space-y-3 bg-slate-950 p-4 border border-brand-border rounded-2xl font-mono text-xs text-slate-400">
-                            <div class="flex justify-between border-b border-brand-border/40 pb-1.5">
-                                <span>Project Target:</span>
-                                <span id="stat-project-id" class="text-brand-accent font-bold">--</span>
-                            </div>
-                            <div class="flex justify-between border-b border-brand-border/40 pb-1.5">
-                                <span>SSL Protocol:</span>
-                                <span class="text-brand-success font-bold">WSS-Secure</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span>Audit Level:</span>
-                                <span class="text-brand-warning font-bold">Root Console</span>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Tab 2: Users Wallet Management -->
+            <!-- Tab 2: Users -->
             <div id="tab-users" class="tab-pane hidden space-y-6">
-                <!-- Filter control bar -->
                 <div class="flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-950 p-4 border border-brand-border rounded-2xl">
                     <div class="relative w-full md:max-w-md">
                         <i data-lucide="search" class="absolute left-4 top-3.5 text-slate-500 w-4 h-4"></i>
-                        <input type="text" id="user-filter" oninput="renderUsersTable()" placeholder="Search profiles by Name, Email, or UID..." class="w-full bg-brand-bg border border-brand-border rounded-xl pl-12 pr-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-accent/50 focus:border-brand-accent transition">
-                    </div>
-
-                    <div class="text-[11px] font-bold tracking-wider uppercase text-slate-400">
-                        Filtered Profiles: <span id="users-filtered-count" class="text-brand-accent text-sm font-extrabold ml-1">0</span> / <span id="users-total-count" class="text-slate-300 text-xs font-semibold">0</span>
+                        <input type="text" id="user-filter" oninput="renderUsersTable()" placeholder="Search profiles..." class="w-full bg-brand-bg border border-brand-border rounded-xl pl-12 pr-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-accent/50 focus:border-brand-accent transition">
                     </div>
                 </div>
-
-                <!-- Users Grid ledger table -->
                 <div class="bg-brand-card border border-brand-border rounded-3xl overflow-hidden shadow-2xl">
                     <div class="overflow-x-auto font-medium">
                         <table class="w-full text-left border-collapse whitespace-nowrap">
@@ -422,31 +229,14 @@ function getDashboardHtml(envDomain, logs, users, transactions, firebaseActive, 
                                     <th class="px-6 py-4.5 text-center">Status & Actions</th>
                                 </tr>
                             </thead>
-                            <tbody id="users-table-rows" class="divide-y divide-brand-border text-sm">
-                                <tr>
-                                    <td colspan="5" class="py-16 text-center text-slate-500">
-                                        <i data-lucide="loading" class="w-8 h-8 animate-spin mx-auto text-brand-accent mb-2"></i>
-                                        Loading registered accounts...
-                                    </td>
-                                </tr>
-                            </tbody>
+                            <tbody id="users-table-rows" class="divide-y divide-brand-border text-sm"></tbody>
                         </table>
                     </div>
                 </div>
             </div>
 
-            <!-- Tab 3: Redemptions Claims List -->
+            <!-- Tab 3: Claims -->
             <div id="tab-claims" class="tab-pane hidden space-y-6">
-                <!-- Info banner -->
-                <div class="bg-amber-500/10 border border-amber-500/20 p-5 rounded-2xl flex gap-3 text-sm leading-relaxed text-amber-300">
-                    <i data-lucide="info" class="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5"></i>
-                    <div>
-                        <strong class="text-white block mb-0.5">Reconciliation & Audit Settlements</strong>
-                        Payout requests must match the verified user's UPI ID. Approving instant status completes claims without refunding. Rejecting a claim reverses the cost value directly back to user wallets!
-                    </div>
-                </div>
-
-                <!-- Claims list table -->
                 <div class="bg-brand-card border border-brand-border rounded-3xl overflow-hidden shadow-2xl">
                     <div class="overflow-x-auto">
                         <table class="w-full text-left border-collapse whitespace-nowrap">
@@ -458,262 +248,132 @@ function getDashboardHtml(envDomain, logs, users, transactions, firebaseActive, 
                                     <th class="px-6 py-4.5 text-center">Action Decisions</th>
                                 </tr>
                             </thead>
-                            <tbody id="claims-table-rows" class="divide-y divide-brand-border text-sm">
-                                <tr>
-                                    <td colspan="4" class="py-16 text-center text-slate-500">
-                                        <i data-lucide="loading" class="w-8 h-8 animate-spin mx-auto text-brand-accent mb-2"></i>
-                                        Observing payout claims ledger...
-                                    </td>
-                                </tr>
-                            </tbody>
+                            <tbody id="claims-table-rows" class="divide-y divide-brand-border text-sm"></tbody>
                         </table>
                     </div>
                 </div>
             </div>
 
-            <!-- Tab 4: Webhooks & S2S Integrations (Merged from File 2) -->
+            <!-- Tab 4: Webhooks & S2S -->
             <div id="tab-webhooks" class="tab-pane hidden space-y-8 animate-fade-in">
-                
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Secure APIs Info -->
                     <div class="bg-brand-card border border-brand-border rounded-3xl p-6 shadow-xl">
-                        <h3 class="text-sm font-bold text-brand-accent mb-3 flex items-center gap-2">
-                            <i data-lucide="shield-check" class="w-4 h-4"></i> Secure S2S Auth Verification APIs
-                        </h3>
-                        <p class="text-xs text-slate-400 mb-4 leading-relaxed">This backend server implements strict, server-side validation to safeguard against database tampering or hacked app attempts:</p>
-                        
+                        <h3 class="text-sm font-bold text-brand-accent mb-3 flex items-center gap-2"><i data-lucide="shield-check" class="w-4 h-4"></i> Secure S2S APIs</h3>
                         <div class="space-y-4">
                             <div class="pb-3 border-b border-brand-border/50">
-                                <span class="text-[10px] text-brand-accent font-bold uppercase tracking-wider block mb-1">1. Google Profile Signups (POST)</span>
-                                <code class="bg-slate-950 text-emerald-400 border border-brand-border px-3 py-1.5 rounded-lg text-xs font-mono block w-full mb-2 truncate">https://your-domain.com/api/signup</code>
-                                <p class="text-[10px] text-slate-500">Decrypts and verifies standard Google Auth ID Tokens. Credits initial welcome gifts strictly (50 coins).</p>
+                                <span class="text-[10px] text-brand-accent font-bold uppercase tracking-wider block mb-1">1. Google Signups (POST)</span>
+                                <code class="bg-slate-950 text-emerald-400 border border-brand-border px-3 py-1.5 rounded-lg text-xs font-mono block w-full mb-2 truncate">https://${envDomain}/api/signup</code>
                             </div>
                             <div>
-                                <span class="text-[10px] text-brand-accent font-bold uppercase tracking-wider block mb-1">2. Atomic Payout Controller (POST)</span>
-                                <code class="bg-slate-950 text-emerald-400 border border-brand-border px-3 py-1.5 rounded-lg text-xs font-mono block w-full mb-2 truncate">https://your-domain.com/api/redeem</code>
-                                <p class="text-[10px] text-slate-500">Executes strict Firestore transaction routines, guaranteeing user balances.</p>
+                                <span class="text-[10px] text-brand-accent font-bold uppercase tracking-wider block mb-1">2. Payout Controller (POST)</span>
+                                <code class="bg-slate-950 text-emerald-400 border border-brand-border px-3 py-1.5 rounded-lg text-xs font-mono block w-full mb-2 truncate">https://${envDomain}/api/redeem</code>
                             </div>
                         </div>
                     </div>
-
-                    <!-- PubScale Config Info -->
                     <div class="bg-brand-card border border-brand-border rounded-3xl p-6 shadow-xl flex flex-col justify-between">
                         <div>
-                            <h3 class="text-sm font-bold text-brand-success mb-3 flex items-center gap-2">
-                                <i data-lucide="link" class="w-4 h-4"></i> PubScale Webhook Callback Configuration
-                            </h3>
-                            <p class="text-xs text-slate-400 mb-4 leading-relaxed">Use the exact URL structure below in your PubScale Publisher Dashboard to send real payouts:</p>
-                            
+                            <h3 class="text-sm font-bold text-brand-success mb-3 flex items-center gap-2"><i data-lucide="link" class="w-4 h-4"></i> PubScale Webhook Callback</h3>
                             <div class="flex items-center gap-3 bg-slate-950 p-3 rounded-xl border border-brand-border">
-                                <code id="callback-url" class="text-xs text-slate-300 font-mono flex-grow truncate">https://your-domain.com/api/callback?uid={user_id}&coins={currency}</code>
-                                <button onclick="copyText('callback-url', 'cb-hint')" class="p-2 bg-brand-border/50 hover:bg-brand-border rounded-lg transition text-slate-300" title="Copy to clipboard">
-                                    <i data-lucide="copy" class="w-4 h-4"></i>
-                                </button>
+                                <code id="callback-url" class="text-xs text-slate-300 font-mono flex-grow truncate">https://${envDomain}/api/callback?uid={user_id}&coins={currency}</code>
+                                <button onclick="copyText('callback-url', 'cb-hint')" class="p-2 bg-brand-border/50 hover:bg-brand-border rounded-lg transition text-slate-300"><i data-lucide="copy" class="w-4 h-4"></i></button>
                             </div>
                             <span id="cb-hint" class="hidden text-[10px] text-brand-success mt-1 font-bold ml-1 transition">Copied to clipboard!</span>
                         </div>
                         <p class="text-[11px] text-brand-warning font-semibold mt-4 bg-brand-warning/10 border border-brand-warning/20 p-2.5 rounded-lg flex gap-2 items-center">
-                            <i data-lucide="zap" class="w-4 h-4"></i> Select GET as request method inside the PubScale panel setup.
+                            <i data-lucide="zap" class="w-4 h-4"></i> Select GET as request method inside PubScale.
                         </p>
                     </div>
                 </div>
 
-                <!-- Webhooks & Server Logs Table -->
                 <div class="bg-brand-card border border-brand-border rounded-3xl overflow-hidden shadow-2xl">
                     <div class="px-6 py-5 border-b border-brand-border flex items-center justify-between bg-slate-950/50">
-                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
-                            <i data-lucide="server" class="w-4 h-4 text-slate-400"></i> Full Server-to-Server Activity Streams
-                        </h3>
-                        <span class="bg-brand-success/15 text-brand-success border border-brand-success/20 text-[9px] px-2.5 py-1 font-extrabold rounded-full uppercase">Real-time Hook Stream</span>
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2"><i data-lucide="server" class="w-4 h-4 text-slate-400"></i> Live PubScale Webhook Logs</h3>
+                        <span class="bg-brand-success/15 text-brand-success border border-brand-success/20 text-[9px] px-2.5 py-1 font-extrabold rounded-full uppercase">Real-time Stream</span>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left border-collapse whitespace-nowrap">
                             <thead>
                                 <tr class="bg-slate-950/80 border-b border-brand-border text-slate-400 text-[10px] font-bold tracking-wider uppercase">
-                                    <th class="px-6 py-4.5">Date / Timestamp</th>
+                                    <th class="px-6 py-4.5">Timestamp</th>
                                     <th class="px-6 py-4.5">User ID (Uid)</th>
-                                    <th class="px-6 py-4.5">Transaction Type</th>
-                                    <th class="px-6 py-4.5">Activity Details</th>
+                                    <th class="px-6 py-4.5">Token / Hash</th>
+                                    <th class="px-6 py-4.5">Verification</th>
                                     <th class="px-6 py-4.5">Value</th>
-                                    <th class="px-6 py-4.5">Server Status</th>
+                                    <th class="px-6 py-4.5">DB Status</th>
                                 </tr>
                             </thead>
-                            <tbody id="s2s-logs-table-rows" class="divide-y divide-brand-border text-sm">
-                                <tr>
-                                    <td colspan="6" class="py-16 text-center text-slate-500">
-                                        <i data-lucide="loading" class="w-8 h-8 animate-spin mx-auto text-brand-accent mb-2"></i>
-                                        Loading server activities & webhooks...
-                                    </td>
-                                </tr>
-                            </tbody>
+                            <tbody id="s2s-logs-table-rows" class="divide-y divide-brand-border text-sm"></tbody>
                         </table>
                     </div>
                 </div>
-
             </div>
 
-            <!-- Tab 5: System Remote Config Settings -->
+            <!-- Tab 5: Settings -->
             <div id="tab-settings" class="tab-pane hidden space-y-8 animate-fade-in">
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    <!-- Config Form -->
                     <div class="bg-brand-card border border-brand-border rounded-3xl p-6 space-y-6 relative">
-                        <div class="absolute top-0 right-0 w-32 h-32 bg-brand-accent/5 rounded-full blur-2xl"></div>
-                        <h3 class="text-base font-bold text-white flex items-center gap-2">
-                            <i data-lucide="toggle-left" class="text-brand-accent"></i> Global Remote Constants
-                        </h3>
-                        <p class="text-xs text-slate-400 leading-relaxed -mt-3">
-                            Directly control system-wide features which dictate client startup conditions and security walls.
-                        </p>
-
+                        <h3 class="text-base font-bold text-white flex items-center gap-2"><i data-lucide="toggle-left" class="text-brand-accent"></i> Global Remote Constants</h3>
                         <div class="space-y-4">
-                            <!-- Toggle Maintenance Mode -->
                             <div class="bg-slate-950 border border-brand-border rounded-2xl p-4 space-y-3">
                                 <div class="flex items-center justify-between">
                                     <div>
-                                        <h4 class="text-sm font-bold text-white flex items-center gap-1.5">
-                                            Manufacturing Mode / Maintenance Lock
-                                            <span id="badge-lock-status" class="bg-brand-success/15 border border-brand-success/30 text-brand-success text-[9px] px-1.5 py-0.5 rounded uppercase font-extrabold">Inactive</span>
-                                        </h4>
-                                        <p class="text-[11px] text-slate-500 mt-1">Locks app start screening behind manufacturing/maintenance panel screen</p>
+                                        <h4 class="text-sm font-bold text-white flex items-center gap-1.5">Maintenance Lock <span id="badge-lock-status" class="bg-brand-success/15 border border-brand-success/30 text-brand-success text-[9px] px-1.5 py-0.5 rounded uppercase font-extrabold">Inactive</span></h4>
                                     </div>
                                     <label class="relative inline-flex items-center cursor-pointer">
                                         <input type="checkbox" id="settings-maintenance" class="sr-only peer" onchange="toggleLocalLockIndicator()">
                                         <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-accent"></div>
                                     </label>
                                 </div>
-                                <button type="button" onclick="saveMaintenanceLockState()" class="w-full bg-brand-accent/20 hover:bg-brand-accent/30 text-white border border-brand-accent/40 py-2.5 px-3 rounded-xl font-bold text-xs tracking-wide transition active:scale-95 flex items-center justify-center gap-1.5">
-                                    🔒 Save Maintenance Lock Status
-                                </button>
+                                <button type="button" onclick="saveMaintenanceLockState()" class="w-full bg-brand-accent/20 hover:bg-brand-accent/30 text-white border border-brand-accent/40 py-2.5 px-3 rounded-xl font-bold text-xs tracking-wide transition active:scale-95 flex items-center justify-center gap-1.5">🔒 Save Lock Status</button>
                             </div>
-
-                            <!-- Min App Version -->
                             <div>
-                                <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Minimum Approved SDK Version</label>
-                                <input type="text" id="settings-min-version" placeholder="1.0.0" class="w-full bg-slate-950 border border-brand-border rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-accent transition">
-                                <p class="text-[10px] text-slate-550 mt-1.5">Versions below this value are prompted on force-update splash screen screens on boot</p>
+                                <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Min App Version</label>
+                                <input type="text" id="settings-min-version" class="w-full bg-slate-950 border border-brand-border rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-accent transition">
                             </div>
-
-                            <!-- Download URL -->
                             <div>
-                                <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Android Package Update URL</label>
-                                <input type="text" id="settings-download-url" placeholder="https://play.google.com/store" class="w-full bg-slate-950 border border-brand-border rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-accent transition">
-                                <p class="text-[10px] text-slate-550 mt-1.5">Target link redirecting force update prompts</p>
+                                <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Update URL</label>
+                                <input type="text" id="settings-download-url" class="w-full bg-slate-950 border border-brand-border rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-accent transition">
                             </div>
-
-                            <button onclick="saveGlobalSettings()" class="w-full glow-success bg-brand-success/15 hover:bg-brand-success/25 border border-brand-success/30 text-brand-success py-3 rounded-xl font-bold text-sm tracking-wide transition active:scale-95 flex items-center justify-center gap-1.5">
-                                <i data-lucide="save" class="w-4 h-4"></i> Commit Remote settings
-                            </button>
+                            <button onclick="saveGlobalSettings()" class="w-full glow-success bg-brand-success/15 hover:bg-brand-success/25 border border-brand-success/30 text-brand-success py-3 rounded-xl font-bold text-sm tracking-wide transition active:scale-95 flex items-center justify-center gap-1.5"><i data-lucide="save" class="w-4 h-4"></i> Commit Settings</button>
                         </div>
-                    </div>
-
-                    <!-- Push notifications panel -->
-                    <div class="bg-brand-card border border-brand-border rounded-3xl p-6 space-y-6 flex flex-col justify-between">
-                        <div class="space-y-4">
-                            <h3 class="text-base font-bold text-white flex items-center gap-2">
-                                <i data-lucide="bell-ring" class="text-brand-warning"></i> Dispatch In-App Notification Hub
-                            </h3>
-                            <p class="text-xs text-slate-400 leading-relaxed">
-                                Queue a system wide message that instantly pushes to the devices of active in-app users in real-time.
-                            </p>
-
-                            <!-- Notification Inputs -->
-                            <div class="space-y-4">
-                                <div>
-                                    <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Broadcast Header / Title</label>
-                                    <input type="text" id="notif-title" placeholder="Hot Reward Event Live! 🚀" class="w-full bg-slate-950 border border-brand-border rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-accent transition">
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Body / Alert Message</label>
-                                    <textarea id="notif-body" placeholder="Earn double point multipliers for completing surveys inside the dashboard now!" class="w-full bg-slate-950 border border-brand-border rounded-xl px-4 py-2.5 text-xs text-white h-24 focus:outline-none focus:ring-1 focus:ring-brand-accent transition"></textarea>
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Trigger Link Action / URL (Optional)</label>
-                                    <input type="text" id="notif-url" placeholder="https://vrewardx.firebaseapp.com" class="w-full bg-slate-950 border border-brand-border rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-accent transition">
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Notification Image URL (Optional)</label>
-                                    <input type="text" id="notif-image-url" placeholder="https://example.com/banner.png" class="w-full bg-slate-950 border border-brand-border rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-accent transition">
-                                </div>
-                            </div>
-                        </div>
-
-                        <button onclick="dispatchAlertMessage()" class="w-full glow-btn bg-brand-accent/15 hover:bg-brand-accent/25 border border-brand-accent/30 text-brand-accent py-3.5 rounded-xl font-bold text-xs tracking-wider uppercase transition active:scale-95 flex items-center justify-center gap-1.5 mt-6">
-                            <i data-lucide="send" class="w-4 h-4"></i> Dispatch Broadcast Notification
-                        </button>
                     </div>
                 </div>
             </div>
         </section>
     </main>
 
-    <!-- Footer for developer credit from File 2 -->
-    <footer id="developer-footer" class="hidden max-w-7xl mx-auto px-6 mt-10 mb-6 text-center">
-        <p class="text-xs text-slate-500 font-semibold tracking-wide">
-            &copy; 2026 vRewardX Admin Console. Securely integrated. Created with dedication by <span class="text-brand-accent font-bold">Vivek Dalvi</span>.
-        </p>
-    </footer>
-
-    <!-- Modals (Coin Adjustment & Claims Settle) -->
-    
-    <!-- Coin adjustment modal -->
+    <!-- Modals -->
     <div id="modal-coin" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-brand-card border border-brand-border p-6 rounded-3xl max-w-sm w-full space-y-4 shadow-2xl relative">
-            <h3 class="text-base font-extrabold text-white flex items-center gap-2">
-                <i data-lucide="edit-3" class="text-brand-accent w-5 h-5"></i> Adjust Wallet Credit
-            </h3>
-            <p id="modal-coin-desc" class="text-xs text-slate-400">Reconcile currency counts for UID profile: ...</p>
-            
+            <h3 class="text-base font-extrabold text-white flex items-center gap-2"><i data-lucide="edit-3" class="text-brand-accent w-5 h-5"></i> Adjust Wallet Credit</h3>
+            <p id="modal-coin-desc" class="text-xs text-slate-400">Reconcile currency counts...</p>
             <div class="space-y-4">
-                <div>
-                     <label class="block text-[9px] font-bold uppercase text-slate-400 mb-1.5">Adjustment Coins Value</label>
-                     <input type="number" id="coin-change-num" value="500" class="w-full bg-slate-950 border border-brand-border rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:ring-1 focus:ring-brand-accent">
-                </div>
-                
+                <input type="number" id="coin-change-num" value="500" class="w-full bg-slate-950 border border-brand-border rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:ring-1 focus:ring-brand-accent">
                 <div class="flex gap-2">
-                    <button onclick="submitCoinAdjust('add')" class="w-1/2 glow-success bg-brand-success/15 hover:bg-brand-success/25 border border-brand-success/30 text-brand-success py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition">
-                        Credit (+)
-                    </button>
-                    <button onclick="submitCoinAdjust('sub')" class="w-1/2 glow-error bg-brand-error/15 hover:bg-brand-error/25 border border-brand-error/30 text-brand-error py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition">
-                        Deduct (-)
-                    </button>
+                    <button onclick="submitCoinAdjust('add')" class="w-1/2 glow-success bg-brand-success/15 hover:bg-brand-success/25 border border-brand-success/30 text-brand-success py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition">Credit (+)</button>
+                    <button onclick="submitCoinAdjust('sub')" class="w-1/2 glow-error bg-brand-error/15 hover:bg-brand-error/25 border border-brand-error/30 text-brand-error py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition">Deduct (-)</button>
                 </div>
             </div>
-            
-            <div class="border-t border-brand-border pt-4 flex justify-end">
-                <button onclick="closeModal('modal-coin')" class="text-xs text-slate-400 hover:text-white font-bold transition">Close Panel</button>
-            </div>
+            <div class="border-t border-brand-border pt-4 flex justify-end"><button onclick="closeModal('modal-coin')" class="text-xs text-slate-400 hover:text-white font-bold transition">Close</button></div>
         </div>
     </div>
 
-    <!-- Payout settlement action validation screen modal -->
     <div id="modal-settle" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-brand-card border border-brand-border p-6 rounded-3xl max-w-sm w-full space-y-4 shadow-2xl relative">
-            <h3 id="settle-title" class="text-base font-extrabold text-white flex items-center gap-2">
-                <i data-lucide="check-square" class="text-brand-success w-5 h-5"></i> Payout Claim Audit
-            </h3>
-            <p id="settle-desc" class="text-xs text-slate-400">Verification details description</p>
-            
+            <h3 id="settle-title" class="text-base font-extrabold text-white flex items-center gap-2"><i data-lucide="check-square" class="text-brand-success w-5 h-5"></i> Payout Claim Audit</h3>
+            <p id="settle-desc" class="text-xs text-slate-400">Verification details</p>
             <div class="space-y-3">
-                <label class="block text-[9px] font-bold uppercase text-slate-400 mb-1">Administrative Audit Ledger Comment</label>
-                <textarea id="settle-notes" placeholder="Audit transaction authorized, UPI status completed." class="w-full bg-slate-950 border border-brand-border rounded-xl px-4 py-2.5 text-xs text-white h-24 focus:outline-none focus:ring-1 focus:ring-brand-accent"></textarea>
+                <textarea id="settle-notes" class="w-full bg-slate-950 border border-brand-border rounded-xl px-4 py-2.5 text-xs text-white h-24 focus:outline-none focus:ring-1 focus:ring-brand-accent"></textarea>
             </div>
-            
             <div class="flex gap-2 justify-end pt-2 border-t border-brand-border">
                 <button onclick="closeModal('modal-settle')" class="mr-auto text-xs text-slate-400 hover:text-white font-bold transition self-center">Cancel</button>
-                
-                <button id="btn-submit-reject" class="glow-error bg-brand-error/15 hover:bg-brand-error/25 border border-brand-error/30 text-brand-error px-4 py-2 text-xs font-bold rounded-xl transition uppercase tracking-wider">
-                    Reject Payout
-                </button>
-                <button id="btn-submit-approve" class="glow-success bg-brand-success/15 hover:bg-brand-success/25 border border-brand-success/30 text-brand-success px-4 py-2 text-xs font-bold rounded-xl transition uppercase tracking-wider">
-                    Settle Pay
-                </button>
+                <button id="btn-submit-reject" class="glow-error bg-brand-error/15 hover:bg-brand-error/25 border border-brand-error/30 text-brand-error px-4 py-2 text-xs font-bold rounded-xl transition uppercase tracking-wider">Reject</button>
+                <button id="btn-submit-approve" class="glow-success bg-brand-success/15 hover:bg-brand-success/25 border border-brand-success/30 text-brand-success px-4 py-2 text-xs font-bold rounded-xl transition uppercase tracking-wider">Settle</button>
             </div>
         </div>
     </div>
 
-    <!-- Operational Javascript Layer -->
     <script>
-        // Pre-filled Configuration keys specified by the owner
         const defaultFirebaseConfig = {
             apiKey: "AIzaSyBCROZHQcXGxZCupI0dg0Ehx2_i0SKINls",
             authDomain: "vrewardx.firebaseapp.com",
@@ -725,354 +385,141 @@ function getDashboardHtml(envDomain, logs, users, transactions, firebaseActive, 
         };
 
         var db = null;
-        var appRef = null;
         var globalUsers = [];
         var globalTransactions = [];
+        var globalWebhooks = [];
         var activeCoinsUserUid = "";
         var activeSettleTxDocId = "";
 
-        // Copy Text Function (From File 2)
         function copyText(elementId, hintId) {
             const text = document.getElementById(elementId).innerText;
             navigator.clipboard.writeText(text);
             const hint = document.getElementById(hintId);
             hint.classList.remove('hidden');
-            setTimeout(() => {
-                hint.classList.add('hidden');
-            }, 2000);
+            setTimeout(() => hint.classList.add('hidden'), 2000);
         }
 
-        // UI Mount Initializer
         document.addEventListener('DOMContentLoaded', function() {
             lucide.createIcons();
-            loadDefaultCredentials();
+            connectFirebase();
         });
 
-        function loadDefaultCredentials() {
-            const project = defaultFirebaseConfig.projectId;
-            const key = defaultFirebaseConfig.apiKey;
-            const domain = defaultFirebaseConfig.authDomain;
-            const appid = defaultFirebaseConfig.appId;
-            const bucket = defaultFirebaseConfig.storageBucket;
-            const senderid = defaultFirebaseConfig.messagingSenderId;
-            
-            // Connection initialized silently 
-            connectFirebase(project, key, domain, appid, bucket, senderid);
-        }
-
-        function connectFirebase(project, key, domain, appid, bucket, senderid) {
-            const config = {
-                apiKey: key,
-                authDomain: domain,
-                projectId: project,
-                storageBucket: bucket,
-                messagingSenderId: senderid,
-                appId: appid,
-                measurementId: defaultFirebaseConfig.measurementId
-            };
-
-            if (firebase.apps.length) {
-                firebase.apps.forEach(app => app.delete());
-            }
-
+        function connectFirebase() {
+            if (firebase.apps.length) firebase.apps.forEach(app => app.delete());
             try {
-                appRef = firebase.initializeApp(config);
+                firebase.initializeApp(defaultFirebaseConfig);
                 db = firebase.firestore();
 
-                // Handle Google redirect results after returning from OAuth flow
-                firebase.auth().getRedirectResult()
-                    .then((result) => {
-                        if (result && result.user) {
-                            console.log("Secure Google Auth redirect parsed successfully for: ", result.user.email);
-                        }
-                    })
-                    .catch((error) => {
-                        console.error("Secure Google redirect parse error: ", error);
-                        const errContainer = document.getElementById('login-error-container');
-                        if (errContainer) {
-                            errContainer.classList.remove('hidden');
-                            document.getElementById('login-error-text').innerText = "Google Sign-In failed: " + error.message;
-                        }
-                    });
-
-                // Listen to Firebase Auth state shifts
                 firebase.auth().onAuthStateChanged(function(user) {
                     const loadingScreen = document.getElementById('login-loading-screen');
                     const loginForm = document.getElementById('admin-login-form');
-                    const errContainer = document.getElementById('login-error-container');
-
+                    
                     if (user) {
-                        // User signed in! Update Profile widget
                         document.getElementById("user-profile").classList.remove("hidden");
                         document.getElementById("user-profile").classList.add("flex");
                         document.getElementById("user-avatar").src = user.photoURL || 'https://i.ibb.co/TDMwv5QD/Generated-Image-June052026-10-45-AM.jpg';
                         document.getElementById("user-name").innerText = user.displayName || 'Root Admin';
 
-                        // Let's check permissions via a Firestore probe
                         loadingScreen.classList.remove('hidden');
                         loginForm.classList.add('hidden');
-                        loadingScreen.innerHTML = `
-                            <div class="flex items-center justify-center gap-2 text-brand-success text-sm font-semibold animate-pulse mb-2">
-                                <span class="w-1.5 h-1.5 bg-brand-success rounded-full animate-ping"></span>
-                                Authenticated! Validating Admin Credentials...
-                            </div>
-                            <p class="text-[11px] text-slate-500">Retrieving system diagnostics authorizations...</p>
-                        `;
-                        lucide.createIcons();
-
-                        db.collection("users").limit(1).get().then(qs => {
-                            // Handshake validated!
-                            updateConnectionIndicator(true, project);
+                        
+                        db.collection("users").limit(1).get().then(() => {
+                            updateConnectionIndicator(true, defaultFirebaseConfig.projectId);
                             document.getElementById('step-setup').classList.add('hidden');
                             document.getElementById('admin-dashboard').classList.remove('hidden');
-                            document.getElementById('developer-footer').classList.remove('hidden');
-
-                            // Start real-time snapshot listeners
                             setupFirestoreRealtimeListeners();
                         }).catch(err => {
-                            console.error("Firestore security permission denied: ", err);
-                            loadingScreen.classList.add('hidden');
-                            loginForm.classList.remove('hidden');
-                            errContainer.classList.remove('hidden');
-                            document.getElementById('login-error-text').innerText = "Access Forbidden: Your account (" + user.email + ") does not have administrative rights.";
-                            
-                            // Sign out to prevent stuck unauthorized states
                             firebase.auth().signOut();
-                            updateConnectionIndicator(false, `Unauthorized`);
+                            updateConnectionIndicator(false, 'Unauthorized');
                             document.getElementById("user-profile").classList.add("hidden");
-                            lucide.createIcons();
+                            alert("Access Denied: You are not an admin.");
+                            location.reload();
                         });
                     } else {
-                        // No user signed in. Render beautiful login form
                         loadingScreen.classList.add('hidden');
                         loginForm.classList.remove('hidden');
                         document.getElementById('step-setup').classList.remove('hidden');
                         document.getElementById('admin-dashboard').classList.add('hidden');
-                        document.getElementById('developer-footer').classList.add('hidden');
-                        document.getElementById("user-profile").classList.add("hidden");
-                        updateConnectionIndicator(false, `Offline`);
-                        lucide.createIcons();
+                        updateConnectionIndicator(false, 'Offline');
                     }
                 });
-
-            } catch (err) {
-                updateConnectionIndicator(false, `Failure`);
-                console.error("Initialize error:", err);
-            }
-        }
-
-        function togglePasswordVisibility() {
-            const pwdInput = document.getElementById('login-password');
-            const toggleIcon = document.getElementById('toggle-password-icon');
-            if (pwdInput && toggleIcon) {
-                if (pwdInput.type === 'password') {
-                    pwdInput.type = 'text';
-                    toggleIcon.setAttribute('data-lucide', 'eye-off');
-                } else {
-                    pwdInput.type = 'password';
-                    toggleIcon.setAttribute('data-lucide', 'eye');
-                }
-                lucide.createIcons();
-            }
+            } catch (err) { console.error("Init error:", err); }
         }
 
         function handleGoogleLogin() {
             const provider = new firebase.auth.GoogleAuthProvider();
-            provider.addScope('email');
-            provider.addScope('profile');
-            provider.setCustomParameters({
-                prompt: 'select_account'
-            });
-
-            const btnGoogle = document.getElementById('btn-google-login');
-            const errContainer = document.getElementById('login-error-container');
-
-            errContainer.classList.add('hidden');
-            btnGoogle.disabled = true;
-            btnGoogle.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Initializing Google...`;
-            lucide.createIcons();
-
-            // Detect if running on mobile or embedded webview to use robust redirect
-            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-            
-            if (isMobile) {
-                firebase.auth().signInWithRedirect(provider)
-                    .catch(e => {
-                        console.error("Google Redirect Error:", e);
-                        resetGoogleBtn(btnGoogle, errContainer, e.message);
-                    });
-            } else {
-                firebase.auth().signInWithPopup(provider)
-                    .then(result => {
-                        resetGoogleBtn(btnGoogle, null, null);
-                    })
-                    .catch(err => {
-                        console.warn("Google Popup failed or blocked, trying redirect fallback...", err);
-                        firebase.auth().signInWithRedirect(provider)
-                            .catch(e => {
-                                resetGoogleBtn(btnGoogle, errContainer, e.message);
-                            });
-                    });
-            }
-        }
-        
-        function resetGoogleBtn(btn, errContainer, msg) {
-            btn.disabled = false;
-            btn.innerHTML = `<svg class="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="#EA4335" d="M12.24 10.285V14.4h6.887c-.648 2.41-2.519 4.114-5.136 4.114A5.79 5.79 0 0 1 8.2 12.725a5.79 5.79 0 0 1 5.79-5.79c2.518 0 4.417 1.058 5.373 1.971l3.223-3.223C20.612 3.842 17.583 2.5 13.99 2.5A10.24 10.24 0 0 0 3.75 12.74a10.24 10.24 0 0 0 10.24 10.24c5.79 0 10.117-4.07 10.117-10.24 0-.649-.071-1.123-.195-1.455H12.24z"/></svg> <span>Sign In with Google Account</span>`;
-            if (errContainer && msg) {
-                errContainer.classList.remove('hidden');
-                document.getElementById('login-error-text').innerText = "Google Sign-In Error: " + msg;
-            }
-            lucide.createIcons();
+            firebase.auth().signInWithPopup(provider).catch(err => alert("Login Failed: " + err.message));
         }
 
         function handleAdminLogin(e) {
             e.preventDefault();
             const email = document.getElementById('login-email').value.trim();
             const password = document.getElementById('login-password').value;
-            const btnSubmit = document.getElementById('btn-login-submit');
-            const errContainer = document.getElementById('login-error-container');
-
-            errContainer.classList.add('hidden');
-            btnSubmit.disabled = true;
-            btnSubmit.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Authenticating Creds...`;
-            lucide.createIcons();
-
-            firebase.auth().signInWithEmailAndPassword(email, password)
-                .then(userCredential => {
-                    // Auth state changed observer will securely run and open dashboard
-                    btnSubmit.disabled = false;
-                    btnSubmit.innerHTML = `<i data-lucide="key" class="w-4 h-4"></i> Authenticate & Enter Console`;
-                    lucide.createIcons();
-                })
-                .catch(err => {
-                    btnSubmit.disabled = false;
-                    btnSubmit.innerHTML = `<i data-lucide="key" class="w-4 h-4"></i> Authenticate & Enter Console`;
-                    errContainer.classList.remove('hidden');
-                    document.getElementById('login-error-text').innerText = "Login failed: " + err.message;
-                    lucide.createIcons();
-                });
+            firebase.auth().signInWithEmailAndPassword(email, password).catch(err => alert("Login failed: " + err.message));
         }
 
         function updateConnectionIndicator(success, label) {
             const badge = document.getElementById('conn-badge');
-            const projectText = document.getElementById('stat-project-id');
-            if (projectText) projectText.innerText = label;
-
             if (success) {
                 badge.className = "flex items-center gap-2 bg-slate-900 border border-brand-success/20 rounded-xl px-4 py-2";
-                badge.innerHTML = `
-                    <span class="w-2.5 h-2.5 bg-brand-success rounded-full animate-pulse"></span>
-                    <span class="text-xs font-semibold text-brand-success">Database Online: '${label}'</span>
-                `;
+                badge.innerHTML = '<span class="w-2.5 h-2.5 bg-brand-success rounded-full animate-pulse"></span><span class="text-xs font-semibold text-brand-success">Database Online</span>';
             } else {
-                if (label === 'Offline') {
-                    badge.className = "flex items-center gap-2 bg-slate-900 border border-slate-700/40 rounded-xl px-4 py-2";
-                    badge.innerHTML = `
-                        <span class="w-2.5 h-2.5 bg-slate-600 rounded-full"></span>
-                        <span class="text-xs font-semibold text-slate-400">Connection Offline</span>
-                    `;
-                } else if (label === 'Unauthorized') {
-                    badge.className = "flex items-center gap-2 bg-slate-900 border border-brand-error/20 rounded-xl px-4 py-2";
-                    badge.innerHTML = `
-                        <span class="w-2.5 h-2.5 bg-brand-error rounded-full animate-pulse"></span>
-                        <span class="text-xs font-semibold text-brand-error">Access Forbidden</span>
-                    `;
-                } else {
-                    badge.className = "flex items-center gap-2 bg-slate-900 border border-brand-error/20 rounded-xl px-4 py-2";
-                    badge.innerHTML = `
-                        <span class="w-2.5 h-2.5 bg-brand-error rounded-full animate-ping"></span>
-                        <span class="text-xs font-semibold text-brand-error">Probing Failure</span>
-                    `;
-                }
+                badge.className = "flex items-center gap-2 bg-slate-900 border border-brand-error/20 rounded-xl px-4 py-2";
+                badge.innerHTML = '<span class="w-2.5 h-2.5 bg-brand-error rounded-full"></span><span class="text-xs font-semibold text-brand-error">Offline</span>';
             }
         }
 
-        // Realtime configuration tracking
         function setupFirestoreRealtimeListeners() {
-            // 1. App configuration listener
+            // Config
             db.collection("config").doc("app").onSnapshot(doc => {
                 if (doc && doc.exists) {
                     const data = doc.data();
-                    const isMaint = data.isMaintenanceMode === true;
-                    document.getElementById('settings-maintenance').checked = isMaint;
+                    document.getElementById('settings-maintenance').checked = data.isMaintenanceMode === true;
                     document.getElementById('settings-min-version').value = data.minAppVersionRequired || "1.0.0";
-                    document.getElementById('settings-download-url').value = data.appDownloadUrl || "https://play.google.com/store";
+                    document.getElementById('settings-download-url').value = data.appDownloadUrl || "";
                     toggleLocalLockIndicator();
                 }
-            }, err => console.warn("App config listener failure", err));
+            });
 
-            // 2. Users list listener
+            // Users
             db.collection("users").onSnapshot(qs => {
-                const list = [];
-                qs.forEach(doc => {
-                    const data = doc.data();
-                    data.uid = data.uid || doc.id;
-                    list.push(data);
-                });
-                globalUsers = list;
-                document.getElementById('users-count-badge').innerText = list.length;
-                
-                rebuildCoreDiagnostics();
-                renderUsersTable();
-                lucide.createIcons();
-            }, err => console.error("Users collections observer failure", err));
+                globalUsers = [];
+                qs.forEach(doc => { const d = doc.data(); d.uid = doc.id; globalUsers.push(d); });
+                document.getElementById('users-count-badge').innerText = globalUsers.length;
+                rebuildCoreDiagnostics(); renderUsersTable(); lucide.createIcons();
+            });
 
-            // 3. Transactions & Webhook ledger observer
-            // We sort client-side for visual presentation
+            // Transactions
             db.collection("transactions").onSnapshot(qs => {
-                const list = [];
-                qs.forEach(doc => {
-                    const data = doc.data();
-                    data.doc_id = doc.id; 
-                    list.push(data);
-                });
-                globalTransactions = list;
-                
-                const pendingCount = list.filter(t => t.type === 'REDEEM' && t.status === 'PENDING').length;
-                document.getElementById('claims-count-badge').innerText = pendingCount;
-                
-                rebuildCoreDiagnostics();
-                renderClaimsTable();
-                renderS2STransactionsTable(); // Also render the S2S Logs table
-                lucide.createIcons();
-            }, err => console.error("Transactions observer failure", err));
+                globalTransactions = [];
+                qs.forEach(doc => { const d = doc.data(); d.doc_id = doc.id; globalTransactions.push(d); });
+                document.getElementById('claims-count-badge').innerText = globalTransactions.filter(t => t.type === 'REDEEM' && t.status === 'PENDING').length;
+                rebuildCoreDiagnostics(); renderClaimsTable(); lucide.createIcons();
+            });
+
+            // PubScale Webhooks (Real-time)
+            db.collection("pubscale_callbacks").orderBy("created_at", "desc").limit(50).onSnapshot(qs => {
+                globalWebhooks = [];
+                qs.forEach(doc => globalWebhooks.push(doc.data()));
+                renderWebhooksTable(); lucide.createIcons();
+            });
         }
 
-        function disconnectDb() {
-            if (firebase && firebase.auth()) {
-                firebase.auth().signOut().then(function() {
-                    location.reload();
-                }).catch(function(err) {
-                    location.reload();
-                });
-            } else {
-                location.reload();
-            }
-        }
+        function disconnectDb() { firebase.auth().signOut().then(() => location.reload()); }
 
         function switchTab(tabId) {
             document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('hidden'));
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.className = "tab-btn px-6 py-4 text-sm font-bold flex items-center gap-2 border-b-2 border-transparent text-slate-400 hover:text-white transition whitespace-nowrap";
-            });
-
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.className = "tab-btn px-6 py-4 text-sm font-bold flex items-center gap-2 border-b-2 border-transparent text-slate-400 hover:text-white transition whitespace-nowrap");
             document.getElementById(tabId).classList.remove('hidden');
-            document.getElementById(`btn-${tabId}`).className = "tab-btn px-6 py-4 text-sm font-bold flex items-center gap-2 border-b-2 border-brand-accent text-white whitespace-nowrap";
+            document.getElementById('btn-' + tabId).className = "tab-btn px-6 py-4 text-sm font-bold flex items-center gap-2 border-b-2 border-brand-accent text-white whitespace-nowrap";
         }
 
-        function openModal(id) {
-            document.getElementById(id).classList.remove('hidden');
-        }
-
-        function closeModal(id) {
-            document.getElementById(id).classList.add('hidden');
-        }
+        function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
         function toggleLocalLockIndicator() {
-            const isChecked = document.getElementById('settings-maintenance').checked;
             const badge = document.getElementById('badge-lock-status');
-            if (isChecked) {
+            if (document.getElementById('settings-maintenance').checked) {
                 badge.className = "bg-brand-error/15 border border-brand-error/30 text-brand-error text-[9px] px-1.5 py-0.5 rounded uppercase font-extrabold";
                 badge.innerText = "Active Locked";
             } else {
@@ -1083,508 +530,122 @@ function getDashboardHtml(envDomain, logs, users, transactions, firebaseActive, 
 
         function rebuildCoreDiagnostics() {
             document.getElementById('stat-total-users').innerText = globalUsers.length;
-            
             const totalCoins = globalUsers.reduce((sum, u) => sum + (parseInt(u.coins) || 0), 0);
-            document.getElementById('stat-total-coins').innerText = formatAbbrValue(totalCoins);
-
-            const settledCoinsCount = globalTransactions
-                .filter(t => t.type === 'REDEEM' && t.status === 'SUCCESS')
-                .reduce((sum, t) => sum + (parseInt(t.coinsAmount) || 0), 0);
-            document.getElementById('stat-total-pro').innerText = "₹" + formatAbbrValue(Math.floor(settledCoinsCount / 100));
-
-            const pendingClaims = globalTransactions.filter(t => t.type === 'REDEEM' && t.status === 'PENDING');
-            document.getElementById('stat-pending-claims').innerText = pendingClaims.length;
+            document.getElementById('stat-total-coins').innerText = totalCoins;
+            const settled = globalTransactions.filter(t => t.type === 'REDEEM' && t.status === 'SUCCESS').reduce((sum, t) => sum + (parseInt(t.coinsAmount) || 0), 0);
+            document.getElementById('stat-total-pro').innerText = "₹" + Math.floor(settled / 100);
+            document.getElementById('stat-pending-claims').innerText = globalTransactions.filter(t => t.type === 'REDEEM' && t.status === 'PENDING').length;
         }
 
-        function formatAbbrValue(num) {
-            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-            return num;
-        }
-
-        // Ledger Render Layers
         function renderUsersTable() {
             const tbody = document.getElementById('users-table-rows');
             const searchVal = document.getElementById('user-filter').value.toLowerCase().trim();
+            const filtered = globalUsers.filter(u => (u.displayName||"").toLowerCase().includes(searchVal) || (u.email||"").toLowerCase().includes(searchVal) || (u.uid||"").toLowerCase().includes(searchVal));
             
-            const filtered = globalUsers.filter(u => {
-                const name = (u.displayName || "").toLowerCase();
-                const mail = (u.email || "").toLowerCase();
-                const uid = (u.uid || "").toLowerCase();
-                return name.includes(searchVal) || mail.includes(searchVal) || uid.includes(searchVal);
-            });
-
-            document.getElementById('users-filtered-count').innerText = filtered.length;
-            document.getElementById('users-total-count').innerText = globalUsers.length;
-
-            if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="py-12 text-center text-slate-500">No account profiles match filter search criteria.</td></tr>`;
-                return;
-            }
+            if (filtered.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="py-12 text-center text-slate-500">No accounts found.</td></tr>'; return; }
 
             tbody.innerHTML = filtered.map(u => {
                 const isBlocked = u.isBlocked === true;
-                const statusHtml = isBlocked 
-                    ? `<span class="bg-brand-error/15 text-brand-error border border-brand-error/20 text-[9px] px-2 py-0.5 font-extrabold rounded-md uppercase">Suspended</span>`
-                    : `<span class="bg-brand-success/15 text-brand-success border border-brand-success/20 text-[9px] px-2 py-0.5 font-extrabold rounded-md uppercase">Active</span>`;
-
-                const btnLabel = isBlocked ? "Lift BAN" : "Suspend Account";
-                const btnIcon = isBlocked ? "unlock" : "ban";
-                const btnClass = isBlocked 
-                    ? "bg-slate-800 border border-brand-border text-slate-300 hover:bg-slate-700 hover:text-white"
-                    : "bg-brand-error/10 border border-brand-error/25 text-brand-error hover:bg-brand-error/25";
-
-                return `
-                    <tr class="hover:bg-slate-950/20 transition">
-                        <td class="px-6 py-4">
-                            <div class="flex items-center gap-3">
-                                <div class="w-9 h-9 bg-brand-accent/15 text-brand-accent font-extrabold rounded-xl flex items-center justify-center border border-brand-accent/20">
-                                    ${(u.displayName || "U").charAt(0).toUpperCase()}
-                                </div>
-                                <div>
-                                    <h4 class="text-white font-bold tracking-tight">${u.displayName || "Unknown Profile"}</h4>
-                                    <p class="text-xs text-slate-400 select-all">${u.email || "No email verified"}</p>
-                                </div>
-                            </div>
-                        </td>
-                        <td class="px-6 py-4.5">
-                            <div class="space-y-1 text-xs">
-                                <p class="font-mono text-slate-400 font-bold">UID: <span class="bg-slate-950 px-1 py-0.5 rounded font-bold text-slate-300 select-all">${u.uid}</span></p>
-                                <p class="text-[10px] text-slate-500 flex items-center gap-1"><i data-lucide="tablet" class="w-3.5 h-3.5"></i> DevID: ${u.androidId || "N/A"}</p>
-                            </div>
-                        </td>
-                        <td class="px-6 py-4.5 text-sm">
-                            ${u.upiId ? `
-                                <div class="flex items-center gap-1.5 text-emerald-400 font-bold">
-                                    <span class="w-1.5 h-1.5 bg-brand-success rounded-full"></span>
-                                    <span class="select-all">${u.upiId}</span>
-                                </div>
-                            ` : `<span class="text-xs text-slate-500 font-semibold select-all">UPI Not Bound</span>`}
-                        </td>
-                        <td class="px-6 py-4.5">
-                            <div class="flex items-center gap-2">
-                                <div class="flex flex-col">
-                                    <span class="text-white font-black text-sm flex items-center gap-1"><i data-lucide="circle-dot" class="w-3.5 h-3.5 text-brand-warning"></i> ${u.coins || 0}</span>
-                                    <span class="text-[9px] text-slate-500 font-bold">Locked: ${u.lockedCoins || 0}</span>
-                                </div>
-                                <button onclick="openCoinAdjustModal('${u.uid}', '${escapeSingleQuotes(u.displayName)}')" class="p-1.5 bg-slate-800 border border-brand-border text-slate-400 hover:text-white rounded-lg transition active:scale-90 flex items-center">
-                                    <i data-lucide="plus-minus" class="w-3.5 h-3.5"></i>
-                                </button>
-                            </div>
-                        </td>
-                        <td class="px-6 py-4.5">
-                            <div class="flex items-center justify-end gap-2.5">
-                                <div class="mr-1">${statusHtml}</div>
-                                <button onclick="toggleUserSuspensionState('${u.uid}', ${isBlocked})" class="px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 active:scale-95 ${btnClass}">
-                                    <i data-lucide="${btnIcon}" class="w-3.5 h-3.5"></i> ${btnLabel}
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                `;
+                const statusHtml = isBlocked ? '<span class="bg-brand-error/15 text-brand-error border border-brand-error/20 text-[9px] px-2 py-0.5 font-extrabold rounded-md uppercase">Suspended</span>' : '<span class="bg-brand-success/15 text-brand-success border border-brand-success/20 text-[9px] px-2 py-0.5 font-extrabold rounded-md uppercase">Active</span>';
+                const btnLabel = isBlocked ? "Lift BAN" : "Suspend";
+                const btnClass = isBlocked ? "bg-slate-800 text-slate-300" : "bg-brand-error/10 text-brand-error";
+                
+                return '<tr class="hover:bg-slate-950/20 transition"><td class="px-6 py-4"><div class="flex items-center gap-3"><div class="w-9 h-9 bg-brand-accent/15 text-brand-accent font-extrabold rounded-xl flex items-center justify-center">' + (u.displayName||"U").charAt(0).toUpperCase() + '</div><div><h4 class="text-white font-bold">' + (u.displayName||"Unknown") + '</h4><p class="text-xs text-slate-400">' + (u.email||"No email") + '</p></div></div></td><td class="px-6 py-4.5"><p class="font-mono text-slate-400 font-bold text-xs">UID: ' + u.uid + '</p></td><td class="px-6 py-4.5 text-sm text-emerald-400 font-bold">' + (u.upiId || "Not Bound") + '</td><td class="px-6 py-4.5"><div class="flex items-center gap-2"><span class="text-white font-black text-sm">' + (u.coins||0) + '</span><button onclick="openCoinAdjustModal(\\'' + u.uid + '\\', \\'User\\')" class="p-1.5 bg-slate-800 text-slate-400 rounded-lg"><i data-lucide="plus-minus" class="w-3.5 h-3.5"></i></button></div></td><td class="px-6 py-4.5"><div class="flex items-center justify-end gap-2.5">' + statusHtml + '<button onclick="toggleUserSuspensionState(\\'' + u.uid + '\\', ' + isBlocked + ')" class="px-3 py-1.5 rounded-lg text-xs font-bold ' + btnClass + '">' + btnLabel + '</button></div></td></tr>';
             }).join('');
         }
 
         function renderClaimsTable() {
             const tbody = document.getElementById('claims-table-rows');
-            const pendingClaims = globalTransactions.filter(t => t.type === 'REDEEM' && t.status === 'PENDING');
+            const pending = globalTransactions.filter(t => t.type === 'REDEEM' && t.status === 'PENDING');
+            if (pending.length === 0) { tbody.innerHTML = '<tr><td colspan="4" class="py-16 text-center text-slate-500">No pending claims.</td></tr>'; return; }
 
-            if (pendingClaims.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4" class="py-16 text-center text-slate-500">🎉 Outstanding payouts backlog cleared! No transactions pending.</td></tr>`;
-                return;
-            }
-
-            tbody.innerHTML = pendingClaims.map(t => {
-                const dateObj = new Date(t.timestamp);
-                const dateString = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                
-                // Retrieve fallback profile binding upiId
-                const profileObj = globalUsers.find(u => u.uid === t.uid);
-                const profileUpiVal = profileObj ? profileObj.upiId : "";
-                const absoluteUpiId = (t.details && t.details.includes('@')) ? t.details : (profileUpiVal || "Unknown UPI");
-
-                return `
-                    <tr class="hover:bg-slate-950/20 transition">
-                        <td class="px-6 py-5">
-                            <div class="flex items-center gap-3">
-                                <div class="w-9 h-9 bg-brand-warning/10 border border-brand-warning/25 text-brand-warning rounded-xl flex items-center justify-center">
-                                    <i data-lucide="shopping-bag" class="w-4.5 h-4.5"></i>
-                                </div>
-                                <div class="space-y-0.5">
-                                    <h4 class="text-white font-bold tracking-tight">${t.title || "Voucher Cashout"}</h4>
-                                    <p class="text-[11px] font-black text-brand-warning">Value cost: ${t.coinsAmount} Coins (Est. ₹${(t.coinsAmount/100).toFixed(0)})</p>
-                                </div>
-                            </div>
-                        </td>
-                        <td class="px-6 py-5">
-                            <div class="space-y-1">
-                                <h5 class="text-xs text-slate-300 font-bold flex items-center gap-1"><i data-lucide="at-sign" class="w-3 h-3 text-emerald-400"></i> UPI Address: <span class="bg-slate-950 border border-brand-border px-1.5 py-0.5 rounded font-mono font-black text-emerald-400 select-all">${absoluteUpiId}</span></h5>
-                                <p class="text-[10px] text-slate-500">Target UID: <span class="select-all">${t.uid}</span></p>
-                            </div>
-                        </td>
-                        <td class="px-6 py-5">
-                            <div class="space-y-0.5 text-slate-400 text-xs font-semibold">
-                                <p class="flex items-center gap-1 font-bold text-slate-300"><i data-lucide="calendar" class="w-3.5 h-3.5 text-brand-accent"></i> ${dateString}</p>
-                                <p class="text-[10px] text-slate-500 font-mono">Index: ${t.timestamp}</p>
-                            </div>
-                        </td>
-                        <td class="px-6 py-5">
-                            <div class="flex items-center justify-center gap-2.5">
-                                <button onclick="openSettleClaimsModal('${t.doc_id}', '${escapeSingleQuotes(t.title)}', '${t.uid}', ${t.coinsAmount}, true)" class="px-3.5 py-1.5 hover:bg-brand-success/15 bg-slate-950 text-brand-success border border-brand-success/20 hover:border-brand-success/50 text-xs font-bold rounded-xl transition flex items-center gap-1 active:scale-95">
-                                    <i data-lucide="check" class="w-3.5 h-3.5"></i> Approve Settle
-                                </button>
-                                <button onclick="openSettleClaimsModal('${t.doc_id}', '${escapeSingleQuotes(t.title)}', '${t.uid}', ${t.coinsAmount}, false)" class="px-3.5 py-1.5 hover:bg-brand-error/15 bg-slate-950 text-brand-error border border-brand-error/20 hover:border-brand-error/50 text-xs font-bold rounded-xl transition flex items-center gap-1 active:scale-95">
-                                    <i data-lucide="x" class="w-3.5 h-3.5"></i> Reject Refund
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                `;
+            tbody.innerHTML = pending.map(t => {
+                const d = new Date(t.timestamp).toLocaleString();
+                const upi = (t.details && t.details.includes('@')) ? t.details : "Unknown UPI";
+                return '<tr class="hover:bg-slate-950/20 transition"><td class="px-6 py-5"><div class="flex items-center gap-3"><div class="w-9 h-9 bg-brand-warning/10 text-brand-warning rounded-xl flex items-center justify-center"><i data-lucide="shopping-bag" class="w-4.5 h-4.5"></i></div><div><h4 class="text-white font-bold">' + t.title + '</h4><p class="text-[11px] text-brand-warning">' + t.coinsAmount + ' Coins</p></div></div></td><td class="px-6 py-5"><h5 class="text-xs text-emerald-400 font-bold">' + upi + '</h5><p class="text-[10px] text-slate-500">' + t.uid + '</p></td><td class="px-6 py-5 text-xs text-slate-400">' + d + '</td><td class="px-6 py-5"><div class="flex items-center justify-center gap-2.5"><button onclick="openSettleClaimsModal(\\'' + t.doc_id + '\\', \\'Claim\\', \\'' + t.uid + '\\', ' + t.coinsAmount + ', true)" class="px-3.5 py-1.5 bg-slate-950 text-brand-success border border-brand-success/20 text-xs font-bold rounded-xl">Approve</button><button onclick="openSettleClaimsModal(\\'' + t.doc_id + '\\', \\'Claim\\', \\'' + t.uid + '\\', ' + t.coinsAmount + ', false)" class="px-3.5 py-1.5 bg-slate-950 text-brand-error border border-brand-error/20 text-xs font-bold rounded-xl">Reject</button></div></td></tr>';
             }).join('');
         }
 
-        // Feature from File 2: Full S2S / Transaction Table renderer
-        function renderS2STransactionsTable() {
+        function renderWebhooksTable() {
             const tbody = document.getElementById('s2s-logs-table-rows');
-            
-            // Sort all transactions latest first
-            const sortedTx = [...globalTransactions].sort((a, b) => b.timestamp - a.timestamp).slice(0, 50); // limit to recent 50 for performance
+            if (globalWebhooks.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="py-16 text-center text-slate-500">No webhook activity recorded yet.</td></tr>'; return; }
 
-            if (sortedTx.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="py-16 text-center text-slate-500">No server activity recorded yet.</td></tr>`;
-                return;
-            }
+            tbody.innerHTML = globalWebhooks.map(item => {
+                let badge = '<span class="text-brand-error bg-brand-error/10 px-2 py-0.5 rounded text-[10px] uppercase font-bold">Rejected</span>';
+                if (item.verified && item.db_success) badge = '<span class="text-brand-success bg-brand-success/10 px-2 py-0.5 rounded text-[10px] uppercase font-bold">Success</span>';
+                else if (item.verified && !item.db_success) badge = '<span class="text-brand-warning bg-brand-warning/10 px-2 py-0.5 rounded text-[10px] uppercase font-bold">DB Failed</span>';
 
-            tbody.innerHTML = sortedTx.map(t => {
-                const dateObj = new Date(t.timestamp);
-                const dateString = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+                const verText = item.verified ? '<span class="text-brand-success">✓ Valid</span>' : '<span class="text-brand-error">✗ Invalid</span>';
                 
-                const isEarn = t.type === 'EARN';
-                const isSuccess = t.status === 'SUCCESS';
-                const isPending = t.status === 'PENDING';
-                
-                let statusBadge = `<span class="text-brand-error font-bold text-[10px] uppercase bg-brand-error/10 border border-brand-error/20 px-2 py-0.5 rounded">Failed/Rejected</span>`;
-                if(isSuccess) statusBadge = `<span class="text-brand-success font-bold text-[10px] uppercase bg-brand-success/10 border border-brand-success/20 px-2 py-0.5 rounded">Success</span>`;
-                if(isPending) statusBadge = `<span class="text-brand-warning font-bold text-[10px] uppercase bg-brand-warning/10 border border-brand-warning/20 px-2 py-0.5 rounded">Pending Auth</span>`;
-
-                const iconColor = isEarn ? "text-emerald-400" : "text-amber-400";
-                const iconType = isEarn ? "arrow-down-left" : "arrow-up-right";
-                const valColor = isEarn ? "text-emerald-400" : "text-amber-400";
-                const valPrefix = isEarn ? "+" : "-";
-
-                return `
-                    <tr class="hover:bg-slate-950/30 transition text-xs">
-                        <td class="px-6 py-4 font-mono text-slate-400">${dateString}</td>
-                        <td class="px-6 py-4 font-mono font-bold text-slate-300"><span class="select-all">${t.uid || "System"}</span></td>
-                        <td class="px-6 py-4">
-                            <span class="flex items-center gap-1.5 font-bold ${iconColor}">
-                                <i data-lucide="${iconType}" class="w-3.5 h-3.5"></i> ${t.type}
-                            </span>
-                        </td>
-                        <td class="px-6 py-4 text-slate-300 max-w-xs truncate" title="${t.details || t.title}">${t.title || "Webhook Event"}</td>
-                        <td class="px-6 py-4 font-black ${valColor}">${valPrefix}${t.coinsAmount || 0} <span class="text-[9px] text-slate-500 font-bold uppercase ml-0.5">Coins</span></td>
-                        <td class="px-6 py-4">${statusBadge}</td>
-                    </tr>
-                `;
+                return '<tr class="hover:bg-slate-950/30 transition text-xs border-b border-brand-border/50"><td class="px-6 py-4 font-mono text-slate-400">' + (item.timestamp||"N/A") + '</td><td class="px-6 py-4 font-mono font-bold text-slate-300">' + (item.user_id||"N/A") + '</td><td class="px-6 py-4 text-brand-accent font-bold truncate max-w-[150px]">' + (item.token||"N/A") + '</td><td class="px-6 py-4">' + verText + '<br><span class="text-[9px] text-slate-500">' + (item.db_msg||"") + '</span></td><td class="px-6 py-4 font-black text-emerald-400">+' + (item.value||0) + ' Coins</td><td class="px-6 py-4">' + badge + '</td></tr>';
             }).join('');
         }
 
-        // Action Executers
-        function openCoinAdjustModal(uid, displayName) {
-            activeCoinsUserUid = uid;
-            document.getElementById('modal-coin-desc').innerText = `Reconcile coin balances manually for profile: ${displayName}`;
-            openModal('modal-coin');
-        }
-
+        function openCoinAdjustModal(uid, name) { activeCoinsUserUid = uid; openModal('modal-coin'); }
         function submitCoinAdjust(type) {
-            if (!db || !activeCoinsUserUid) return;
             const size = parseInt(document.getElementById('coin-change-num').value);
-            if (isNaN(size) || size <= 0) {
-                alert("Please declare a positive points balance magnitude!");
-                return;
-            }
-
+            if (isNaN(size) || size <= 0) return alert("Invalid amount");
             db.collection("users").doc(activeCoinsUserUid).get().then(doc => {
-                if (doc && doc.exists) {
-                    const currentCoins = parseInt(doc.data().coins) || 0;
-                    const shiftValue = type === 'add' ? size : -size;
-                    const finalCoins = Math.max(0, currentCoins + shiftValue);
-
-                    doc.ref.update({
-                        coins: finalCoins
-                    }).then(() => {
-                        const compoundTxId = `${activeCoinsUserUid}_${Date.now()}`;
-                        db.collection("transactions").doc(compoundTxId).set({
-                            uid: activeCoinsUserUid,
-                            type: type === 'add' ? 'EARN' : 'REDEEM',
-                            title: type === 'add' ? 'Support Coin Credit' : 'Balance Audit Debit',
-                            details: `Manual points audit adjust (${type === 'add' ? '+' : '-'}${size} Coins)`,
-                            coinsAmount: size,
-                            status: 'SUCCESS',
-                            timestamp: Date.now()
-                        }).then(() => {
-                            closeModal('modal-coin');
-                            alert("Balance updated successfully! Local devices synchronized.");
-                        });
-                    }).catch(e => alert("Modify balance failure: " + e.message));
-                } else {
-                    alert("Account profile document reference deleted or inactive!");
+                if (doc.exists) {
+                    const finalCoins = Math.max(0, (parseInt(doc.data().coins) || 0) + (type === 'add' ? size : -size));
+                    doc.ref.update({ coins: finalCoins }).then(() => {
+                        db.collection("transactions").doc(activeCoinsUserUid + '_' + Date.now()).set({ uid: activeCoinsUserUid, type: type === 'add' ? 'EARN' : 'REDEEM', title: 'Manual Adjust', coinsAmount: size, status: 'SUCCESS', timestamp: Date.now() }).then(() => { closeModal('modal-coin'); alert("Updated!"); });
+                    });
                 }
             });
         }
 
-        function toggleUserSuspensionState(uid, currentBlockStatus) {
-            if (!db) return;
-            const verbStr = currentBlockStatus ? "lift block on" : "safeguard suspend";
-            if (!confirm(`Are you absolutely sure you want to ${verbStr} UID: '${uid}'?`)) return;
-
-            db.collection("users").doc(uid).set({
-                isBlocked: !currentBlockStatus
-            }, { merge: true }).then(() => {
-                alert("User status updated in real-time!");
-            }).catch(e => alert("Modify lock failed: " + e.message));
+        function toggleUserSuspensionState(uid, isBlocked) {
+            if (confirm("Change suspension status?")) db.collection("users").doc(uid).set({ isBlocked: !isBlocked }, { merge: true });
         }
 
-        // Claims settling flow
-        var activeCoinsAmount = 0;
-        function openSettleClaimsModal(docId, title, uid, coinsAmount, isApproved) {
-            activeSettleTxDocId = docId;
-            activeCoinsAmount = coinsAmount;
-            
-            const titleElement = document.getElementById('settle-title');
-            const descElement = document.getElementById('settle-desc');
-            const textNotes = document.getElementById('settle-notes');
-
-            descElement.innerHTML = `Item: <strong>${title}</strong><br>Target: <strong>${uid}</strong><br>Worth: <strong>${coinsAmount} Coins</strong>`;
-            
-            if (isApproved) {
-                titleElement.className = "text-base font-extrabold text-brand-success flex items-center gap-2";
-                titleElement.innerHTML = `<i data-lucide="check-circle" class="text-brand-success"></i> Settlement Approval Clearance`;
-                textNotes.value = "PAYOUT CLEARED: Verified and completed via direct administrator balance checkout.";
-                
-                document.getElementById('btn-submit-approve').onclick = function() { commitPayoutClaimSettleDecision(uid, true); };
-                document.getElementById('btn-submit-approve').classList.remove('hidden');
-                document.getElementById('btn-submit-reject').classList.add('hidden');
-            } else {
-                titleElement.className = "text-base font-extrabold text-brand-error flex items-center gap-2";
-                titleElement.innerHTML = `<i data-lucide="alert-triangle" class="text-brand-error"></i> Claim Rejection & Return`;
-                textNotes.value = "PAYOUT REJECTED: Account audit review found mismatched UPI ID profiles. Points reversed.";
-                
-                document.getElementById('btn-submit-reject').onclick = function() { commitPayoutClaimSettleDecision(uid, false); };
-                document.getElementById('btn-submit-reject').classList.remove('hidden');
-                document.getElementById('btn-submit-approve').classList.add('hidden');
-            }
-
+        function openSettleClaimsModal(docId, title, uid, coins, isApprove) {
+            activeSettleTxDocId = docId; activeCoinsAmount = coins;
+            document.getElementById('settle-notes').value = isApprove ? "PAYOUT CLEARED" : "PAYOUT REJECTED";
+            document.getElementById('btn-submit-approve').classList.toggle('hidden', !isApprove);
+            document.getElementById('btn-submit-reject').classList.toggle('hidden', isApprove);
+            document.getElementById('btn-submit-approve').onclick = () => commitPayout(uid, true);
+            document.getElementById('btn-submit-reject').onclick = () => commitPayout(uid, false);
             openModal('modal-settle');
         }
 
-        function commitPayoutClaimSettleDecision(uid, approveClicked) {
-            if (!db || !activeSettleTxDocId) return;
-
-            const finalStatus = approveClicked ? "SUCCESS" : "REJECTED";
-            const adminNotes = document.getElementById('settle-notes').value.trim();
-
-            if (!adminNotes) {
-                alert("Please write administrative review remarks!");
-                return;
-            }
-
-            if (approveClicked) {
-                db.collection("transactions").doc(activeSettleTxDocId).update({
-                    status: finalStatus,
-                    details: adminNotes
-                }).then(() => {
-                    closeModal('modal-settle');
-                    alert("Payout settled and locked successfully!");
-                }).catch(e => alert("Reconciliation error: " + e.message));
+        function commitPayout(uid, isApprove) {
+            const status = isApprove ? "SUCCESS" : "REJECTED";
+            const notes = document.getElementById('settle-notes').value;
+            if (isApprove) {
+                db.collection("transactions").doc(activeSettleTxDocId).update({ status: status, details: notes }).then(() => { closeModal('modal-settle'); alert("Settled!"); });
             } else {
-                // Return points first!
-                db.collection("users").doc(uid).get().then(userDoc => {
-                    if (userDoc && userDoc.exists) {
-                        const currentBalance = parseInt(userDoc.data().coins) || 0;
-                        const refundedBalance = currentBalance + activeCoinsAmount;
-
-                        userDoc.ref.update({
-                            coins: refundedBalance
-                        }).then(() => {
-                            db.collection("transactions").doc(activeSettleTxDocId).update({
-                                status: finalStatus,
-                                details: adminNotes
-                            }).then(() => {
-                                closeModal('modal-settle');
-                                alert("Payout claim rejected successfully! Mapped coins refunded back onto user's wallet index.");
-                            });
-                        }).catch(err => alert("Refund transaction rollback execution write interrupted: " + err.message));
-                    } else {
-                        // User profile deleted
-                        db.collection("transactions").doc(activeSettleTxDocId).update({
-                            status: finalStatus,
-                            details: adminNotes
-                        }).then(() => {
-                            closeModal('modal-settle');
-                            alert("Payout rejected but user wallet profiles are offline.");
+                db.collection("users").doc(uid).get().then(doc => {
+                    if (doc.exists) {
+                        doc.ref.update({ coins: (parseInt(doc.data().coins) || 0) + activeCoinsAmount }).then(() => {
+                            db.collection("transactions").doc(activeSettleTxDocId).update({ status: status, details: notes }).then(() => { closeModal('modal-settle'); alert("Rejected & Refunded!"); });
                         });
                     }
                 });
             }
         }
 
-        // Global server settings management
         function saveMaintenanceLockState() {
-            if (!db) return;
-            const isMaint = document.getElementById('settings-maintenance').checked;
-            db.collection("config").doc("app").set({
-                isMaintenanceMode: isMaint
-            }, { merge: true }).then(() => {
-                alert("Manufacturing/Maintenance Lock status updated and synced live!");
-            }).catch(e => alert("Maintenance Lock save failure: " + e.message));
+            db.collection("config").doc("app").set({ isMaintenanceMode: document.getElementById('settings-maintenance').checked }, { merge: true }).then(() => alert("Saved!"));
         }
 
         function saveGlobalSettings() {
-            if (!db) return;
-            const isMaint = document.getElementById('settings-maintenance').checked;
-            const version = document.getElementById('settings-min-version').value.trim();
-            const downloadUrl = document.getElementById('settings-download-url').value.trim();
-
-            if (!version || !downloadUrl) {
-                alert("Complete standard system update constants before committing changes!");
-                return;
-            }
-
-            db.collection("config").doc("app").set({
-                isMaintenanceMode: isMaint,
-                minAppVersionRequired: version,
-                appDownloadUrl: downloadUrl
-            }, { merge: true }).then(() => {
-                alert("System-wide constants updated and synchronized live!");
-            }).catch(e => alert("Commit failure: " + e.message));
-        }
-
-        // Alert Message Dispatcher
-        function dispatchAlertMessage() {
-            if (!db) return;
-            const title = document.getElementById('notif-title').value.trim();
-            const body = document.getElementById('notif-body').value.trim();
-            const url = document.getElementById('notif-url').value.trim();
-            const image = document.getElementById('notif-image-url').value.trim();
-
-            if (!title || !body) {
-                alert("Notification Title and Content are required!");
-                return;
-            }
-
-            db.collection("config").doc("broadcast").set({
-                title: title,
-                message: body,
-                clickUrl: url,
-                imageUrl: image,
-                timestamp: Date.now()
-            }).then(() => {
-                document.getElementById('notif-title').value = "";
-                document.getElementById('notif-body').value = "";
-                document.getElementById('notif-url').value = "";
-                document.getElementById('notif-image-url').value = "";
-                alert("Alert Broadcast synchronized to all users!");
-            }).catch(e => alert("Dispatch Failure: " + e.message));
-        }
-
-        // Utilities
-        function escapeSingleQuotes(str) {
-            return (str || "").replace(/'/g, "\\'");
+            db.collection("config").doc("app").set({ isMaintenanceMode: document.getElementById('settings-maintenance').checked, minAppVersionRequired: document.getElementById('settings-min-version').value, appDownloadUrl: document.getElementById('settings-download-url').value }, { merge: true }).then(() => alert("Saved!"));
         }
     </script>
 </body>
-</html>
-  `;
+</html>`;
 }
 
+// Vercel Serverless Function Endpoint
 module.exports = async (req, res) => {
+  // Dynamically get the domain for the webhook URL display
   const envDomain = req.headers['host'] || 'pubscale-webhook-vrewardx.vercel.app';
   
-  let logs = [];
-  let users = [];
-  let transactions = [];
-
-  if (firebaseInitialized && db) {
-    try {
-      // 1. Fetch PubScale callbacks
-      const callbacksSnapshot = await db.collection("pubscale_callbacks")
-        .orderBy("created_at", "desc")
-        .limit(15)
-        .get();
-        
-      callbacksSnapshot.forEach(doc => {
-        const data = doc.data();
-        logs.push({
-          timestamp: data.timestamp || "N/A",
-          user_id: data.user_id || "N/A",
-          value: data.value || "0",
-          token: data.token || "N/A",
-          signature: data.signature || "N/A",
-          verified: data.verified !== undefined ? data.verified : false,
-          formula: data.formula || "Unknown",
-          db_success: data.db_success !== undefined ? data.db_success : false,
-          db_msg: data.db_msg || ""
-        });
-      });
-    } catch (err) {
-      console.error("Error reading logs from Firestore:", err);
-    }
-
-    try {
-      // 2. Fetch Users
-      const usersSnapshot = await db.collection("users")
-        .limit(100)
-        .get();
-        
-      usersSnapshot.forEach(doc => {
-        const data = doc.data();
-        users.push({
-          uid: doc.id,
-          displayName: data.displayName || "Unknown User",
-          email: data.email || "No Email",
-          coins: data.coins !== undefined ? data.coins : 0,
-          deviceId: data.deviceId || "Empty"
-        });
-      });
-      // Sort users by coin balance descending
-      users.sort((a, b) => b.coins - a.coins);
-    } catch (err) {
-      console.error("Error reading users from Firestore:", err);
-    }
-
-    try {
-      // 3. Fetch Transactions (Welcome / Redeems) and sort descending in memory to prevent index failure
-      const txSnapshot = await db.collection("transactions")
-        .limit(150)
-        .get();
-        
-      txSnapshot.forEach(doc => {
-        const data = doc.data();
-        let ts = data.timestamp;
-        if (!ts) {
-          ts = Date.now();
-        } else if (ts && typeof ts.toDate === "function") {
-          ts = ts.toDate().getTime(); // handle firestore Timestamp objects
-        }
-        transactions.push({
-          uid: data.uid || "N/A",
-          type: data.type || "N/A",
-          title: data.title || "N/A",
-          details: data.details || "N/A",
-          coinsAmount: data.coinsAmount !== undefined ? data.coinsAmount : 0,
-          status: data.status || "N/A",
-          timestamp: ts
-        });
-      });
-      transactions.sort((a, b) => b.timestamp - a.timestamp);
-      transactions = transactions.slice(0, 30);
-    } catch (err) {
-      console.error("Error reading transactions from Firestore:", err);
-    }
-  }
-
-  const html = getDashboardHtml(envDomain, logs, users, transactions, firebaseInitialized, firebaseStatus);
+  // Generate the HTML
+  const html = getDashboardHtml(envDomain);
+  
+  // Send the response instantly (No server-side database fetching needed, UI handles it real-time)
   res.setHeader('Content-Type', 'text/html');
   return res.status(200).send(html);
 };
