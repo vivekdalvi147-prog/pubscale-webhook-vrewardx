@@ -16,6 +16,9 @@
     {
       "src": "/(.*)",
       "dest": "api/index.js"
+      {
+      "src": "admin",
+      "dest": "api/admin.html"
     }
   ]
 }
