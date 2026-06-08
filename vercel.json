@@ -13,12 +13,6 @@
       "src": "/api/redeem",
       "dest": "api/redeem.js"
     },
-
-    {
-      "src": "/admin",
-      "dest": "/api/admin.html"
-    },
-
     {
       "src": "/(.*)",
       "dest": "api/index.js"
