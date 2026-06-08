@@ -6,6 +6,14 @@
       "dest": "api/callback.js"
     },
     {
+      "src": "/api/signup",
+      "dest": "api/signup.js"
+    },
+    {
+      "src": "/api/redeem",
+      "dest": "api/redeem.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "api/index.js"
     }
