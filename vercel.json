@@ -14,6 +14,10 @@
       "dest": "api/redeem.js"
     },
     {
+      "src": "/api/bol-ai",
+      "dest": "api/bol-ai.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "api/index.js"
     }
