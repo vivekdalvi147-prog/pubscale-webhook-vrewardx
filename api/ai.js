@@ -107,11 +107,11 @@ module.exports = async (req, res) => {
     await rateLimitDocRef.set({ timestamps });
 
     // 3. RETRIEVE BOL-AI API KEY FROM ENVIRONMENT
-    const apiKey = process.env.BOL_AI_API_VREWAEDX;
+    const apiKey = process.env.NVIDIA_AI_bol_AI;
     if (!apiKey) {
       return res.status(500).json({ 
         success: false, 
-        error: "BOL_AI_API_VREWAEDX is not configured on server backend." 
+        error: "NVIDIA_AI_bol_AI is not configured on server backend." 
       });
     }
 
@@ -140,42 +140,53 @@ General Rules:
 - State clearly that you are developed by Vivek Vijay Dalvi from Maharashtra, India.
 - If an image is provided, inspect it (e.g. if the user says "what is this", "kaisa chalega" or uploaded a screenshot, help them debug it or explain what they see).`;
 
-    // 5. STRUCTURE THE GEMINI MULTIMODAL payload
-    const parts = [
-      { text: systemPrompt },
-      { text: `User query: ${message}` }
+    // 5. STRUCTURE THE NVIDIA CHAT COMPLETIONS MULTIMODAL payload
+    const activeMessages = [
+      {
+        role: "system",
+        content: systemPrompt
+      }
     ];
 
     if (imageBase64) {
-      parts.push({
-        inlineData: {
-          mimeType: "image/jpeg",
-          data: imageBase64
-        }
+      activeMessages.push({
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: message
+          },
+          {
+            type: "image_url",
+            image_url: {
+              url: `data:image/jpeg;base64,${imageBase64}`
+            }
+          }
+        ]
+      });
+    } else {
+      activeMessages.push({
+        role: "user",
+        content: message
       });
     }
 
-    // Call Google Gemini API (Using 1.5-flash as the robust production engine, with search grounding)
-    // We allow mapping to public v1beta endpoint.
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    // Call NVIDIA API (Using moonshotai/kimi-k2.6)
+    const invoke_url = "https://integrate.api.nvidia.com/v1/chat/completions";
 
     const payload = {
-      contents: [
-        {
-          parts: parts
-        }
-      ],
-      // NATIVE GOOGLE SEARCH GROUNDING
-      tools: [
-        {
-          googleSearch: {}
-        }
-      ]
+      model: "moonshotai/kimi-k2.6",
+      messages: activeMessages,
+      max_tokens: 4096,
+      temperature: 0.20,
+      top_p: 1.00,
+      stream: false
     };
 
-    const response = await fetch(url, {
+    const response = await fetch(invoke_url, {
       method: "POST",
       headers: {
+        "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify(payload)
@@ -183,35 +194,26 @@ General Rules:
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error("Gemini API calling error:", errText);
-      return res.status(502).json({ success: false, error: "Failed to communicate with the core AI model." });
+      console.error("NVIDIA API calling error:", errText);
+      return res.status(502).json({ success: false, error: "Failed to communicate with NVIDIA Bol-AI model." });
     }
 
     const resJson = await response.json();
     
-    // Parse Gemini text response
+    // Parse response
     let botResponse = "I could not generate a response. Please try again.";
     try {
-      if (resJson.candidates && resJson.candidates[0] && resJson.candidates[0].content) {
-        botResponse = resJson.candidates[0].content.parts[0].text;
+      if (resJson.choices && resJson.choices[0] && resJson.choices[0].message) {
+        botResponse = resJson.choices[0].message.content;
       }
     } catch (parseErr) {
       console.error("Failed to parse response structure:", parseErr);
     }
 
-    // Detect if search queries were utilized by Gemini Search Grounding
-    let searchQueryUsed = null;
-    try {
-      const searchMetadata = resJson.candidates?.[0]?.groundingMetadata;
-      if (searchMetadata && searchMetadata.webSearchQueries && searchMetadata.webSearchQueries.length > 0) {
-        searchQueryUsed = searchMetadata.webSearchQueries.join(", ");
-      }
-    } catch (err) {}
-
     return res.status(200).json({
       success: true,
       text: botResponse,
-      searchQueryUsed: searchQueryUsed
+      searchQueryUsed: null
     });
 
   } catch (error) {
