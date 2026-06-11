@@ -91,7 +91,28 @@ module.exports = async (req, res) => {
         userCoins = 0;
       }
 
-      // 2. Create authoritative Google User inside cloud Firestore
+      // 2. Generate standard 5-character alphanumeric referral code securely
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let referralCode = '';
+      let isUnique = false;
+      let checkAttempts = 0;
+      while (!isUnique && checkAttempts < 5) {
+        let code = '';
+        for (let i = 0; i < 5; i++) {
+          code += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        const existingDocs = await db.collection("users").where("referralCode", "==", code).limit(1).get();
+        if (existingDocs.empty) {
+          referralCode = code;
+          isUnique = true;
+        }
+        checkAttempts++;
+      }
+      if (!isUnique) {
+        referralCode = uid.substring(0, 5).toUpperCase();
+      }
+
+      // 3. Create authoritative Google User inside cloud Firestore
       await userRef.set({
         uid: uid,
         displayName: name,
@@ -102,7 +123,8 @@ module.exports = async (req, res) => {
         androidId: deviceId || "unknown",
         deviceId: deviceId || "unknown",
         ipAddress: req.headers['x-forwarded-for'] || req.socket.remoteAddress || "127.0.0.1",
-        isBlocked: false
+        isBlocked: false,
+        referralCode: referralCode
       });
 
       // Write immutable starting reward welcome logs to transactions DB
@@ -119,14 +141,44 @@ module.exports = async (req, res) => {
       }
     } else {
       // Return authoritative profile details
-      userCoins = userSnapshot.data().coins !== undefined ? userSnapshot.data().coins : 0;
+      const existingData = userSnapshot.data();
+      userCoins = existingData.coins !== undefined ? existingData.coins : 0;
+      
+      // Auto-assign code if missing
+      if (!existingData.referralCode) {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        let referralCode = '';
+        let isUnique = false;
+        let checkAttempts = 0;
+        while (!isUnique && checkAttempts < 5) {
+          let code = '';
+          for (let i = 0; i < 5; i++) {
+            code += chars.charAt(Math.floor(Math.random() * chars.length));
+          }
+          const existingDocs = await db.collection("users").where("referralCode", "==", code).limit(1).get();
+          if (existingDocs.empty) {
+            referralCode = code;
+            isUnique = true;
+          }
+          checkAttempts++;
+        }
+        if (!isUnique) {
+          referralCode = uid.substring(0, 5).toUpperCase();
+        }
+        await userRef.update({ referralCode: referralCode });
+      }
     }
+
+    // Grab final updated doc
+    const updatedSnap = await userRef.get();
+    const finalData = updatedSnap.data();
 
     return res.status(200).json({
       success: true,
       uid: uid,
       isNewUser: isNewUser,
       coins: userCoins,
+      referralCode: finalData.referralCode,
       message: isNewUser 
         ? (userCoins > 0 ? "Signup verified successfully! Welcome 50-coins bonus credited from server." : "Signup verified. Starting balance is 0 to avoid multi-account fraud.")
         : "Re-synced authenticated profile successfully."
