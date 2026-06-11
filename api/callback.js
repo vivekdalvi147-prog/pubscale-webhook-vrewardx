@@ -164,6 +164,80 @@ module.exports = async (req, res) => {
           timestamp: currentTimestampMillis
         });
 
+        // ----------------------------------------------------
+        // Secure referral milestones payouts
+        // ----------------------------------------------------
+        try {
+          const referralRef = db.collection("referrals").doc(user_id);
+          const referralSnap = await referralRef.get();
+          if (referralSnap.exists) {
+            const referralData = referralSnap.data();
+            const currentStage = referralData.stage || "ATTRIBUTED";
+            const newCount = (referralData.friendCompletesCount || 0) + 1;
+
+            let updateRefData = {
+              friendCompletesCount: newCount
+            };
+
+            let rewardReferrerAmount = 0;
+            let newStage = currentStage;
+            let rewardTitle = "";
+            let rewardDetails = "";
+
+            if (newCount >= 1 && currentStage === "ATTRIBUTED") {
+              rewardReferrerAmount = 100;
+              newStage = "COMPLETED_1_TASK";
+              rewardTitle = "Referral Reward (Stage 1)";
+              rewardDetails = "Your friend completed 1st PubScale offer!";
+            } else if (newCount >= 7 && currentStage === "COMPLETED_1_TASK") {
+              rewardReferrerAmount = 100;
+              newStage = "COMPLETED_7_TASKS";
+              rewardTitle = "Referral Reward (Stage 2)";
+              rewardDetails = "Your friend completed 7 PubScale offers!";
+            }
+
+            updateRefData.stage = newStage;
+            await referralRef.update(updateRefData);
+
+            if (rewardReferrerAmount > 0) {
+              const referrerUid = referralData.referrerUid;
+              const referrerRef = db.collection("users").doc(referrerUid);
+              const referrerSnap = await referrerRef.get();
+
+              if (referrerSnap.exists) {
+                const rData = referrerSnap.data();
+                const updatedCoins = (rData.coins || 0) + rewardReferrerAmount;
+                await referrerRef.update({ coins: updatedCoins });
+
+                const friendName = userSnapshot.exists ? (userSnapshot.data().displayName || "Invite Friend") : "Invited friend";
+
+                // Save transaction log for the Referrer
+                const rTxId = `REF_PAY_${referrerUid}_${Date.now()}`;
+                await db.collection("transactions").doc(rTxId).set({
+                  uid: referrerUid,
+                  type: "EARN",
+                  title: rewardTitle,
+                  details: `${rewardDetails} (Friend Name: ${friendName})`,
+                  coinsAmount: rewardReferrerAmount,
+                  status: "SUCCESS",
+                  timestamp: Date.now()
+                });
+
+                // Trigger persistent broadcast config alert to push standard system notification
+                await db.collection("config").document("broadcast").set({
+                  title: "🎉 Referral Milestone Reached!",
+                  message: `${friendName} completed tasks! You received +${rewardReferrerAmount} Coins.`,
+                  clickUrl: "",
+                  imageUrl: "https://i.ibb.co/6N6K4zS/reward.png",
+                  timestamp: Date.now()
+                });
+              }
+            }
+          }
+        } catch (errRef) {
+          console.error("Non-critical referral hook processing failure:", errRef);
+        }
+
       } catch (err) {
         dbSuccess = false;
         dbMsg = `Firestore write error: ${err.message}`;
