@@ -136,88 +136,73 @@ module.exports = async (req, res) => {
         });
       }
 
-      // 2. Unification lookup state
-      let referrerUid = "";
-      let referrerCode = "";
-      let referrerName = "";
-      let attributionToken = "MANUAL";
-
-      const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || "127.0.0.1";
-      const userAgent = req.headers['user-agent'] || "Unknown";
-
-      if (manualCode && manualCode.trim().length > 0) {
-        // Handle explicit manual entry backup
-        const cleanedManual = manualCode.toUpperCase().trim();
-        const refQuery = await db.collection("users").where("referralCode", "==", cleanedManual).limit(1).get();
-        if (refQuery.empty) {
-          return res.status(404).json({ success: false, error: "Referral code not found. Ensure 5 uppercase characters are typed." });
-        }
-        
-        const fDoc = refQuery.docs[0].data();
-        referrerUid = fDoc.uid;
-        referrerCode = cleanedManual;
-        referrerName = fDoc.displayName || "Your friend";
-      } else {
-        // Fingerprint Lookup! Retrieve click record via IP and User Agent match within last 2 hours
-        const activeClicks = await db.collection("referral_clicks")
-          .where("ip", "==", clientIp)
-          .where("status", "==", "ACTIVE")
-          .orderBy("timestamp", "desc")
-          .limit(5)
-          .get();
-
-        if (!activeClicks.empty) {
-          // Verify user agent keywords match securely (ignoring minor updates or differences)
-          let matchDoc = null;
-          for (const doc of activeClicks.docs) {
-            const data = doc.data();
-            if (data.expiresAt > Date.now()) {
-              // Standard fingerprint substring verification
-              const clickUa = (data.userAgent || "").toLowerCase();
-              const currUa = userAgent.toLowerCase();
-              
-              // If operating system match (android) or similar device, complete connection
-              if (currUa.includes("android") && clickUa.includes("android")) {
-                matchDoc = doc;
-                break;
-              }
-              // Fallback match nearest IP if no contrasting agents
-              if (!matchDoc) {
-                matchDoc = doc;
-              }
-            }
-          }
-
-          if (matchDoc) {
-            const data = matchDoc.data();
-            referrerUid = data.referrerUid;
-            referrerCode = data.referralCode;
-            referrerName = data.referrerName;
-            attributionToken = data.token;
-
-            // Mark click used
-            await matchDoc.ref.update({ status: "USED" });
-          }
-        }
+      // 2. Unification lookup state (Manual entry ONLY, no automatic click/fingerprints)
+      if (!manualCode || manualCode.trim().length === 0) {
+        return res.status(400).json({ success: false, error: "Referral code is required. Please type your sponsor's 5-character referral code." });
       }
 
-      if (!referrerUid) {
-        return res.status(200).json({ 
-          success: false, 
-          error: "No active install click found. (Fingerprint match timed out or wifi IP changed). Please enter a code manually below!" 
-        });
+      const cleanedManual = manualCode.toUpperCase().trim();
+      const refQuery = await db.collection("users").where("referralCode", "==", cleanedManual).limit(1).get();
+      if (refQuery.empty) {
+        return res.status(404).json({ success: false, error: "Referral code not found. Please verify the code and try again." });
       }
+
+      const fDoc = refQuery.docs[0].data();
+      const referrerUid = fDoc.uid;
+      const referrerCode = cleanedManual;
+      const referrerName = fDoc.displayName || "Your friend";
 
       if (referrerUid === uid) {
         return res.status(400).json({ success: false, error: "Self-referrals are blocked. You cannot invite yourself." });
       }
 
-      // Create permanent record binding them
+      const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || "127.0.0.1";
+
+      // 3. Reward the Referrer 31 coins immediately!
+      const referrerRef = db.collection("users").doc(referrerUid);
+      let updatedReferrerCoins = 0;
+
+      await db.runTransaction(async (transaction) => {
+        const rSnap = await transaction.get(referrerRef);
+        if (rSnap.exists) {
+          const rData = rSnap.data();
+          const currentCoins = rData.coins || 0;
+          updatedReferrerCoins = currentCoins + 31;
+          transaction.update(referrerRef, { coins: updatedReferrerCoins });
+        }
+      });
+
+      // Fetch referred friend's display name for transaction list clarity
+      const friendSnap = await db.collection("users").doc(uid).get();
+      const friendName = friendSnap.exists ? (friendSnap.data().displayName || "Active Friend") : "Invited Friend";
+
+      // 4. Save transaction log for the Referrer
+      const rTxId = `REF_JOIN_${referrerUid}_${uid}_${Date.now()}`;
+      await db.collection("transactions").doc(rTxId).set({
+        uid: referrerUid,
+        type: "EARN",
+        title: "Referral Link Bonus",
+        details: `${friendName} linked your referral code! (+31 Coins)`,
+        coinsAmount: 31,
+        status: "SUCCESS",
+        timestamp: Date.now()
+      });
+
+      // 5. Trigger persistent broadcast config alert to push system notification to the Referrer
+      await db.collection("config").doc("broadcast").set({
+        title: "🎉 Friend Linked Your Code!",
+        message: `${friendName} used your referral code ${referrerCode}! You received +31 Coins instantly.`,
+        clickUrl: "",
+        imageUrl: "https://i.ibb.co/6N6K4zS/reward.png",
+        timestamp: Date.now()
+      });
+
+      // 6. Create permanent record binding them
       await db.collection("referrals").doc(uid).set({
         referredUid: uid,
         referrerUid: referrerUid,
         referrerCode: referrerCode,
-        token: attributionToken,
+        token: "MANUAL",
         timestamp: Date.now(),
         stage: "ATTRIBUTED",
         friendCompletesCount: 0,
@@ -228,7 +213,7 @@ module.exports = async (req, res) => {
         success: true,
         referrerName,
         referralCode: referrerCode,
-        message: `Successfully linked your sponsor ${referrerName}! Keep exploring offers to unlock rewards together.`
+        message: `Successfully linked your sponsor ${referrerName}! +31 Coins awarded to them. Keep exploring offers to unlock rewards together.`
       });
 
     } catch (err) {
