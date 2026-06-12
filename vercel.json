@@ -14,6 +14,10 @@
       "dest": "api/redeem.js"
     },
     {
+      "src": "/api/send-notification",
+      "dest": "api/notification.js"
+    },
+    {
       "src": "/api/ai",
       "dest": "api/ai.js"
     },
