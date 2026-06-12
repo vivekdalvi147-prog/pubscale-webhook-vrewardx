@@ -18,6 +18,14 @@
       "dest": "api/ai.js"
     },
     {
+      "src": "/api/daily",
+      "dest": "api/daily.js"
+    },
+    {
+      "src": "/api/referral/(.*)",
+      "dest": "api/referral.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "api/index.js"
     }
