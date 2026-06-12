@@ -249,6 +249,12 @@ module.exports = async (req, res) => {
                           imageUrl: "https://i.ibb.co/6N6K4zS/reward.png",
                           body: `${friendName} completed tasks! You received +${rewardReferrerAmount} Coins.`,
                           title: "🎉 Referral Milestone Reached!"
+                        },
+                        android: {
+                          priority: "high",
+                          notification: {
+                            channelId: "app_broadcast_notifications"
+                          }
                         }
                       };
                       await admin.messaging().send(payload);
