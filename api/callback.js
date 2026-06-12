@@ -156,11 +156,11 @@ module.exports = async (req, res) => {
         const txRef = db.collection("transactions").doc(txId);
         await txRef.set({
           uid: user_id,
-          type: "credit",
+          type: "EARN",
           title: "PubScale Reward",
           details: `Rewarded ${valueInt} coins for completing tasks (Ref: ${token}).`,
           coinsAmount: valueInt,
-          status: "APPROVED",
+          status: "SUCCESS",
           timestamp: currentTimestampMillis
         });
 
@@ -224,13 +224,40 @@ module.exports = async (req, res) => {
                 });
 
                 // Trigger persistent broadcast config alert to push standard system notification
-                await db.collection("config").document("broadcast").set({
+                await db.collection("config").doc("broadcast").set({
                   title: "🎉 Referral Milestone Reached!",
                   message: `${friendName} completed tasks! You received +${rewardReferrerAmount} Coins.`,
                   clickUrl: "",
                   imageUrl: "https://i.ibb.co/6N6K4zS/reward.png",
                   timestamp: Date.now()
                 });
+
+                // Send real-time FCM notification directly to referrer
+                try {
+                  const referrerDoc = await referrerRef.get();
+                  if (referrerDoc.exists) {
+                    const fcmToken = referrerDoc.data().fcmToken;
+                    if (fcmToken) {
+                      const payload = {
+                        token: fcmToken,
+                        notification: {
+                          title: "🎉 Referral Milestone Reached!",
+                          body: `${friendName} completed tasks! You received +${rewardReferrerAmount} Coins.`
+                        },
+                        data: {
+                          clickUrl: "",
+                          imageUrl: "https://i.ibb.co/6N6K4zS/reward.png",
+                          body: `${friendName} completed tasks! You received +${rewardReferrerAmount} Coins.`,
+                          title: "🎉 Referral Milestone Reached!"
+                        }
+                      };
+                      await admin.messaging().send(payload);
+                      console.log(`Successfully sent FCM notification to referrer ${referrerUid}`);
+                    }
+                  }
+                } catch (fcmErr) {
+                  console.error("FCM dispatch error to referrer on milestone callback:", fcmErr);
+                }
               }
             }
           }
