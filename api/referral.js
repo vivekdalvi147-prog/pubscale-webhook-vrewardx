@@ -158,17 +158,28 @@ module.exports = async (req, res) => {
 
       const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || "127.0.0.1";
 
-      // 3. Reward the Referrer 31 coins immediately!
+      // 3. Reward both Referrer and Referred friend with 31 coins immediately!
       const referrerRef = db.collection("users").doc(referrerUid);
+      const friendRef = db.collection("users").doc(uid);
       let updatedReferrerCoins = 0;
+      let updatedFriendCoins = 0;
 
       await db.runTransaction(async (transaction) => {
         const rSnap = await transaction.get(referrerRef);
+        const fSnap = await transaction.get(friendRef);
+        
         if (rSnap.exists) {
           const rData = rSnap.data();
           const currentCoins = rData.coins || 0;
           updatedReferrerCoins = currentCoins + 31;
           transaction.update(referrerRef, { coins: updatedReferrerCoins });
+        }
+        
+        if (fSnap.exists) {
+          const fData = fSnap.data();
+          const currentCoins = fData.coins || 0;
+          updatedFriendCoins = currentCoins + 31;
+          transaction.update(friendRef, { coins: updatedFriendCoins });
         }
       });
 
@@ -176,13 +187,26 @@ module.exports = async (req, res) => {
       const friendSnap = await db.collection("users").doc(uid).get();
       const friendName = friendSnap.exists ? (friendSnap.data().displayName || "Active Friend") : "Invited Friend";
 
-      // 4. Save transaction log for the Referrer
+      // 4. Save transaction logs
+      // A) Log for the Referrer
       const rTxId = `REF_JOIN_${referrerUid}_${uid}_${Date.now()}`;
       await db.collection("transactions").doc(rTxId).set({
         uid: referrerUid,
         type: "EARN",
         title: "Referral Link Bonus",
         details: `${friendName} linked your referral code! (+31 Coins)`,
+        coinsAmount: 31,
+        status: "SUCCESS",
+        timestamp: Date.now()
+      });
+
+      // B) Log for the Referred friend as well
+      const fTxId = `REF_LINK_${uid}_${referrerUid}_${Date.now()}`;
+      await db.collection("transactions").doc(fTxId).set({
+        uid: uid,
+        type: "EARN",
+        title: "Referral Reward",
+        details: `Linked referral code of ${referrerName}! (+31 Coins)`,
         coinsAmount: 31,
         status: "SUCCESS",
         timestamp: Date.now()
@@ -196,43 +220,6 @@ module.exports = async (req, res) => {
         imageUrl: "https://i.ibb.co/6N6K4zS/reward.png",
         timestamp: Date.now()
       });
-
-      // Send real-time FCM notification directly to referrer
-      try {
-        const referrerDoc = await referrerRef.get();
-        if (referrerDoc.exists) {
-          const fcmToken = referrerDoc.data().fcmToken;
-          if (fcmToken) {
-            const payload = {
-              token: fcmToken,
-              notification: {
-                title: "🎉 Friend Linked Your Code!",
-                body: `${friendName} used your referral code ${referrerCode}! You received +31 Coins instantly.`
-              },
-              data: {
-                clickUrl: "",
-                imageUrl: "https://i.ibb.co/6N6K4zS/reward.png",
-                body: `${friendName} used your referral code ${referrerCode}! You received +31 Coins instantly.`,
-                title: "🎉 Friend Linked Your Code!"
-              },
-              android: {
-                priority: "high",
-                notification: {
-                  channelId: "app_broadcast_notifications",
-                  sound: "default",
-                  defaultSound: true,
-                  notificationPriority: "PRIORITY_HIGH",
-                  visibility: "public"
-                }
-              }
-            };
-            await admin.messaging().send(payload);
-            console.log(`Successfully sent FCM notification to referrer ${referrerUid}`);
-          }
-        }
-      } catch (fcmErr) {
-        console.error("FCM dispatch error to referrer:", fcmErr);
-      }
 
       // 6. Create permanent record binding them
       await db.collection("referrals").doc(uid).set({
