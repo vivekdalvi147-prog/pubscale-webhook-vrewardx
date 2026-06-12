@@ -253,7 +253,11 @@ module.exports = async (req, res) => {
                         android: {
                           priority: "high",
                           notification: {
-                            channelId: "app_broadcast_notifications"
+                            channelId: "app_broadcast_notifications",
+                            sound: "default",
+                            defaultSound: true,
+                            notificationPriority: "PRIORITY_HIGH",
+                            visibility: "public"
                           }
                         }
                       };
