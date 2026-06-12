@@ -197,6 +197,33 @@ module.exports = async (req, res) => {
         timestamp: Date.now()
       });
 
+      // Send real-time FCM notification directly to referrer
+      try {
+        const referrerDoc = await referrerRef.get();
+        if (referrerDoc.exists) {
+          const fcmToken = referrerDoc.data().fcmToken;
+          if (fcmToken) {
+            const payload = {
+              token: fcmToken,
+              notification: {
+                title: "🎉 Friend Linked Your Code!",
+                body: `${friendName} used your referral code ${referrerCode}! You received +31 Coins instantly.`
+              },
+              data: {
+                clickUrl: "",
+                imageUrl: "https://i.ibb.co/6N6K4zS/reward.png",
+                body: `${friendName} used your referral code ${referrerCode}! You received +31 Coins instantly.`,
+                title: "🎉 Friend Linked Your Code!"
+              }
+            };
+            await admin.messaging().send(payload);
+            console.log(`Successfully sent FCM notification to referrer ${referrerUid}`);
+          }
+        }
+      } catch (fcmErr) {
+        console.error("FCM dispatch error to referrer:", fcmErr);
+      }
+
       // 6. Create permanent record binding them
       await db.collection("referrals").doc(uid).set({
         referredUid: uid,
