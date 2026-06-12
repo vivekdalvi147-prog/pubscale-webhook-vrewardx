@@ -79,12 +79,20 @@ module.exports = async (req, res) => {
     payload.data.message = message;
     payload.data.body = message;
 
+    const androidConfig = {
+      priority: "high",
+      notification: {
+        channelId: "app_broadcast_notifications"
+      }
+    };
+
     if (type === 'broadcast') {
       // 1. Send broadcast notification to the "broadcast" topic (scalable to millions of users)
       const broadcastPayload = {
         topic: 'broadcast',
         notification: payload.notification,
-        data: payload.data
+        data: payload.data,
+        android: androidConfig
       };
 
       const response = await admin.messaging().send(broadcastPayload);
@@ -125,7 +133,8 @@ module.exports = async (req, res) => {
       const userPayload = {
         token: fcmToken,
         notification: payload.notification,
-        data: payload.data
+        data: payload.data,
+        android: androidConfig
       };
 
       const response = await admin.messaging().send(userPayload);
