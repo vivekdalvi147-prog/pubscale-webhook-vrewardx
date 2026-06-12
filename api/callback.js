@@ -231,43 +231,6 @@ module.exports = async (req, res) => {
                   imageUrl: "https://i.ibb.co/6N6K4zS/reward.png",
                   timestamp: Date.now()
                 });
-
-                // Send real-time FCM notification directly to referrer
-                try {
-                  const referrerDoc = await referrerRef.get();
-                  if (referrerDoc.exists) {
-                    const fcmToken = referrerDoc.data().fcmToken;
-                    if (fcmToken) {
-                      const payload = {
-                        token: fcmToken,
-                        notification: {
-                          title: "🎉 Referral Milestone Reached!",
-                          body: `${friendName} completed tasks! You received +${rewardReferrerAmount} Coins.`
-                        },
-                        data: {
-                          clickUrl: "",
-                          imageUrl: "https://i.ibb.co/6N6K4zS/reward.png",
-                          body: `${friendName} completed tasks! You received +${rewardReferrerAmount} Coins.`,
-                          title: "🎉 Referral Milestone Reached!"
-                        },
-                        android: {
-                          priority: "high",
-                          notification: {
-                            channelId: "app_broadcast_notifications",
-                            sound: "default",
-                            defaultSound: true,
-                            notificationPriority: "PRIORITY_HIGH",
-                            visibility: "public"
-                          }
-                        }
-                      };
-                      await admin.messaging().send(payload);
-                      console.log(`Successfully sent FCM notification to referrer ${referrerUid}`);
-                    }
-                  }
-                } catch (fcmErr) {
-                  console.error("FCM dispatch error to referrer on milestone callback:", fcmErr);
-                }
               }
             }
           }
