@@ -214,6 +214,12 @@ module.exports = async (req, res) => {
                 imageUrl: "https://i.ibb.co/6N6K4zS/reward.png",
                 body: `${friendName} used your referral code ${referrerCode}! You received +31 Coins instantly.`,
                 title: "🎉 Friend Linked Your Code!"
+              },
+              android: {
+                priority: "high",
+                notification: {
+                  channelId: "app_broadcast_notifications"
+                }
               }
             };
             await admin.messaging().send(payload);
