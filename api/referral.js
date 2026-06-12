@@ -158,22 +158,14 @@ module.exports = async (req, res) => {
 
       const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || "127.0.0.1";
 
-      // 3. Reward both Referrer and Referred friend with 31 coins immediately!
+      // 3. Reward only the Referred friend with 31 coins immediately!
       const referrerRef = db.collection("users").doc(referrerUid);
       const friendRef = db.collection("users").doc(uid);
-      let updatedReferrerCoins = 0;
       let updatedFriendCoins = 0;
 
       await db.runTransaction(async (transaction) => {
         const rSnap = await transaction.get(referrerRef);
         const fSnap = await transaction.get(friendRef);
-        
-        if (rSnap.exists) {
-          const rData = rSnap.data();
-          const currentCoins = rData.coins || 0;
-          updatedReferrerCoins = currentCoins + 31;
-          transaction.update(referrerRef, { coins: updatedReferrerCoins });
-        }
         
         if (fSnap.exists) {
           const fData = fSnap.data();
@@ -187,20 +179,7 @@ module.exports = async (req, res) => {
       const friendSnap = await db.collection("users").doc(uid).get();
       const friendName = friendSnap.exists ? (friendSnap.data().displayName || "Active Friend") : "Invited Friend";
 
-      // 4. Save transaction logs
-      // A) Log for the Referrer
-      const rTxId = `REF_JOIN_${referrerUid}_${uid}_${Date.now()}`;
-      await db.collection("transactions").doc(rTxId).set({
-        uid: referrerUid,
-        type: "EARN",
-        title: "Referral Link Bonus",
-        details: `${friendName} linked your referral code! (+31 Coins)`,
-        coinsAmount: 31,
-        status: "SUCCESS",
-        timestamp: Date.now()
-      });
-
-      // B) Log for the Referred friend as well
+      // 4. Save transaction log ONLY for the Referred friend who gets +31 Coins
       const fTxId = `REF_LINK_${uid}_${referrerUid}_${Date.now()}`;
       await db.collection("transactions").doc(fTxId).set({
         uid: uid,
@@ -215,7 +194,7 @@ module.exports = async (req, res) => {
       // 5. Trigger persistent broadcast config alert to push system notification to the Referrer
       await db.collection("config").doc("broadcast").set({
         title: "🎉 Friend Linked Your Code!",
-        message: `${friendName} used your referral code ${referrerCode}! You received +31 Coins instantly.`,
+        message: `${friendName} used your referral code ${referrerCode}! You will receive +100 Coins when they complete their first task.`,
         clickUrl: "",
         imageUrl: "https://i.ibb.co/6N6K4zS/reward.png",
         timestamp: Date.now()
@@ -237,7 +216,7 @@ module.exports = async (req, res) => {
         success: true,
         referrerName,
         referralCode: referrerCode,
-        message: `Successfully linked your sponsor ${referrerName}! +31 Coins awarded to them. Keep exploring offers to unlock rewards together.`
+        message: `Successfully linked your sponsor ${referrerName}! You received +31 Coins instantly in your wallet.`
       });
 
     } catch (err) {
