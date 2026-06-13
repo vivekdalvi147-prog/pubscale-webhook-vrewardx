@@ -260,12 +260,15 @@ module.exports = async (req, res) => {
       const uidsToFetch = [];
       snapshot.forEach(doc => {
         const data = doc.data();
-        uidsToFetch.push({
-          referredUid: data.referredUid,
-          stage: data.stage || "ATTRIBUTED",
-          friendCompletesCount: data.friendCompletesCount || 0,
-          timestamp: data.timestamp
-        });
+        const refId = data.referredUid || doc.id;
+        if (refId && typeof refId === 'string' && refId.trim() !== '') {
+          uidsToFetch.push({
+            referredUid: refId.trim(),
+            stage: data.stage || "ATTRIBUTED",
+            friendCompletesCount: data.friendCompletesCount || 0,
+            timestamp: data.timestamp || Date.now()
+          });
+        }
       });
 
       // Hydrate displayNames
