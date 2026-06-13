@@ -4,6 +4,8 @@ const admin = require('firebase-admin');
 let db = null;
 let firebaseInitialized = false;
 
+// bol-ai <DOCTYPE HTML> 
+//<HTMLAllCollection
 try {
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
@@ -164,6 +166,18 @@ module.exports = async (req, res) => {
         return res.status(400).json({ success: false, error: "Self-referrals are blocked. You cannot invite yourself." });
       }
 
+      // Check for mutual / circular referrals (A cannot refer B if B already referred A)
+      const circularCheckDoc = await db.collection("referrals").doc(referrerUid).get();
+      if (circularCheckDoc.exists) {
+        const circularData = circularCheckDoc.data() || {};
+        if (circularData.referrerUid === uid) {
+          return res.status(400).json({
+            success: false,
+            error: "Mutual referral blocked. Since this user linked your code, you cannot link theirs."
+          });
+        }
+      }
+
       const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || "127.0.0.1";
 
       // 3. Reward only the Referred friend with 31 coins immediately!
@@ -199,13 +213,14 @@ module.exports = async (req, res) => {
         timestamp: Date.now()
       });
 
-      // 5. Trigger persistent broadcast config alert to push system notification to the Referrer
+      // 5. Trigger persistent broadcast config alert to push system notification to the Referrer and Friend
       await db.collection("config").doc("broadcast").set({
         title: "🎉 Friend Linked Your Code!",
         message: `${friendName} used your referral code ${referrerCode}! You will receive +100 Coins when they complete their first task.`,
         clickUrl: "",
         imageUrl: "https://i.ibb.co/6N6K4zS/reward.png",
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        targetUids: [referrerUid, uid]
       });
 
       // 6. Create permanent record binding them
@@ -273,15 +288,22 @@ module.exports = async (req, res) => {
 
       // Hydrate displayNames
       for (const item of uidsToFetch) {
-        const friendSnap = await db.collection("users").doc(item.referredUid).get();
-        const fData = friendSnap.exists ? friendSnap.data() : null;
-        list.push({
-          uid: item.referredUid,
-          name: fData ? (fData.displayName || "vRewardX Explorer") : "Active Friend",
-          stage: item.stage,
-          completedCount: item.friendCompletesCount,
-          timestamp: item.timestamp
-        });
+        if (!item.referredUid || typeof item.referredUid !== 'string' || item.referredUid.trim() === '') {
+          continue;
+        }
+        try {
+          const friendSnap = await db.collection("users").doc(item.referredUid).get();
+          const fData = friendSnap.exists ? friendSnap.data() : null;
+          list.push({
+            uid: item.referredUid,
+            name: fData ? (fData.displayName || "vRewardX Explorer") : "Active Friend",
+            stage: item.stage,
+            completedCount: item.friendCompletesCount,
+            timestamp: item.timestamp
+          });
+        } catch (errDoc) {
+          console.error("Failed to fetch user doc for referral item:", item.referredUid, errDoc);
+        }
       }
 
       // Sort by joining time descending
