@@ -213,14 +213,14 @@ module.exports = async (req, res) => {
         timestamp: Date.now()
       });
 
-      // 5. Trigger persistent broadcast config alert to push system notification to the Referrer and Friend
+      // 5. Trigger persistent broadcast config alert to push system notification to the Referrer
       await db.collection("config").doc("broadcast").set({
         title: "🎉 Friend Linked Your Code!",
         message: `${friendName} used your referral code ${referrerCode}! You will receive +100 Coins when they complete their first task.`,
         clickUrl: "",
         imageUrl: "https://i.ibb.co/6N6K4zS/reward.png",
         timestamp: Date.now(),
-        targetUids: [referrerUid, uid]
+        targetUids: [referrerUid]
       });
 
       // 6. Create permanent record binding them
