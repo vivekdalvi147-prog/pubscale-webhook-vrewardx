@@ -229,7 +229,8 @@ module.exports = async (req, res) => {
                   message: `${friendName} completed tasks! You received +${rewardReferrerAmount} Coins.`,
                   clickUrl: "",
                   imageUrl: "https://i.ibb.co/6N6K4zS/reward.png",
-                  timestamp: Date.now()
+                  timestamp: Date.now(),
+                  targetUids: [referrerUid]
                 });
               }
             }
