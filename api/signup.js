@@ -124,7 +124,9 @@ module.exports = async (req, res) => {
         deviceId: deviceId || "unknown",
         ipAddress: req.headers['x-forwarded-for'] || req.socket.remoteAddress || "127.0.0.1",
         isBlocked: false,
-        referralCode: referralCode
+        referralCode: referralCode,
+        dailyStreakDay: 1,
+        lastDailyClaimTime: 0
       });
 
       // Write immutable starting reward welcome logs to transactions DB
