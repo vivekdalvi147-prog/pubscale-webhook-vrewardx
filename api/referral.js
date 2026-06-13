@@ -60,7 +60,15 @@ module.exports = async (req, res) => {
     // POST /api/referral/click
     // ----------------------------------------------------
     const params = req.method === 'GET' ? req.query : (req.body || {});
-    const referralCode = (params.referralCode || params.ref || '').toUpperCase().trim();
+    let referralCode = (params.referralCode || params.ref || '').toUpperCase().trim();
+    if (!referralCode) {
+      try {
+        const parsedUrl = require('url').parse(req.url, true);
+        if (parsedUrl && parsedUrl.query) {
+          referralCode = (parsedUrl.query.referralCode || parsedUrl.query.ref || '').toUpperCase().trim();
+        }
+      } catch (e) {}
+    }
 
     if (!referralCode) {
       return res.status(400).json({ success: false, error: "Missing required reference parameter 'ref' or 'referralCode'." });
@@ -230,7 +238,15 @@ module.exports = async (req, res) => {
     // Retrieves your referred friends lists and status
     // ----------------------------------------------------
     const params = req.method === 'GET' ? req.query : (req.body || {});
-    const uid = params.uid;
+    let uid = params.uid;
+    if (!uid) {
+      try {
+        const parsedUrl = require('url').parse(req.url, true);
+        if (parsedUrl && parsedUrl.query && parsedUrl.query.uid) {
+          uid = parsedUrl.query.uid;
+        }
+      } catch (e) {}
+    }
 
     if (!uid) {
       return res.status(400).json({ success: false, error: "Missing required parameter 'uid'." });
