@@ -1,41 +1,5 @@
-const admin = require('firebase-admin');
+const { admin, db, rtdb, firebaseInitialized, syncSet, syncUpdate } = require('./firebase');
 const crypto = require('crypto');
-
-// Initialize Firebase Admin SDK
-let db = null;
-let firebaseInitialized = false;
-let firebaseStatus = "Not Initialized";
-
-try {
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  let privateKey = process.env.FIREBASE_PRIVATE_KEY;
-
-  if (projectId && clientEmail && privateKey) {
-    privateKey = privateKey.replace(/\\n/g, '\n').trim();
-    if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
-      privateKey = privateKey.substring(1, privateKey.length - 1).replace(/\\n/g, '\n');
-    }
-
-    if (!admin.apps.length) {
-      admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId,
-          clientEmail,
-          privateKey
-        })
-      });
-    }
-    db = admin.firestore();
-    firebaseInitialized = true;
-    firebaseStatus = `Connected successfully to firestore project: '${projectId}'`;
-  } else {
-    firebaseStatus = "Passive Mode (Logging Only). Configure FIREBASE credentials in Vercel to credit real coins.";
-  }
-} catch (e) {
-  firebaseStatus = `Firebase initialization error: ${e.message}`;
-  console.error("Firebase Admin init error:", e);
-}
 
 module.exports = async (req, res) => {
   // Support both GET query parameters and POST body
@@ -119,26 +83,28 @@ module.exports = async (req, res) => {
   let dbSuccess = false;
   let dbMsg = "Database not connected";
 
+  let finalUserSnap = null;
+
   if (verified) {
     if (firebaseInitialized && db) {
       try {
         const userRef = db.collection("users").doc(user_id);
         const userSnapshot = await userRef.get();
         const currentTimestampMillis = Date.now();
+        let currentCoins = 0;
 
         if (userSnapshot.exists) {
-          let currentCoins = userSnapshot.get("coins") || 0;
+          currentCoins = userSnapshot.get("coins") || 0;
           currentCoins = parseInt(currentCoins, 10) || 0;
           const newCoins = currentCoins + valueInt;
 
-          await userRef.update({
-            coins: newCoins
-          });
+          // Double update both DB stores
+          await syncUpdate("users", user_id, { coins: newCoins });
           dbSuccess = true;
           dbMsg = `Credited (+${valueInt}). Total: ${newCoins} coins.`;
         } else {
-          // Create document with initial balance
-          await userRef.set({
+          // Create document with initial balance in both stores
+          const newUserObj = {
             uid: user_id,
             displayName: "PubScale Offerwall User",
             email: "offerwall_user@example.com",
@@ -146,15 +112,18 @@ module.exports = async (req, res) => {
             lockedCoins: 0,
             upiId: "",
             androidId: "offerwall_s2s"
-          });
+          };
+          await syncSet("users", user_id, newUserObj);
           dbSuccess = true;
           dbMsg = `Created profile. Credited (+${valueInt}) coins.`;
         }
 
-        // Write transaction entity logs
+        // Fetch final user record name for references
+        finalUserSnap = await userRef.get();
+
+        // Write transaction entity logs to both Firestore and RTDB
         const txId = `${user_id}_${currentTimestampMillis}`;
-        const txRef = db.collection("transactions").doc(txId);
-        await txRef.set({
+        const txObj = {
           uid: user_id,
           type: "EARN",
           title: "PubScale Reward",
@@ -162,7 +131,8 @@ module.exports = async (req, res) => {
           coinsAmount: valueInt,
           status: "SUCCESS",
           timestamp: currentTimestampMillis
-        });
+        };
+        await syncSet("transactions", txId, txObj);
 
         // ----------------------------------------------------
         // Secure referral milestones payouts
@@ -197,7 +167,7 @@ module.exports = async (req, res) => {
             }
 
             updateRefData.stage = newStage;
-            await referralRef.update(updateRefData);
+            await syncUpdate("referrals", user_id, updateRefData);
 
             if (rewardReferrerAmount > 0) {
               const referrerUid = referralData.referrerUid;
@@ -207,13 +177,13 @@ module.exports = async (req, res) => {
               if (referrerSnap.exists) {
                 const rData = referrerSnap.data();
                 const updatedCoins = (rData.coins || 0) + rewardReferrerAmount;
-                await referrerRef.update({ coins: updatedCoins });
+                await syncUpdate("users", referrerUid, { coins: updatedCoins });
 
-                const friendName = userSnapshot.exists ? (userSnapshot.data().displayName || "Invite Friend") : "Invited friend";
+                const friendName = (finalUserSnap && finalUserSnap.exists) ? (finalUserSnap.data().displayName || "Invite Friend") : "Invited friend";
 
-                // Save transaction log for the Referrer
+                // Save transaction log for the Referrer in both DB stores
                 const rTxId = `REF_PAY_${referrerUid}_${Date.now()}`;
-                await db.collection("transactions").doc(rTxId).set({
+                const referrerTxObj = {
                   uid: referrerUid,
                   type: "EARN",
                   title: rewardTitle,
@@ -221,17 +191,19 @@ module.exports = async (req, res) => {
                   coinsAmount: rewardReferrerAmount,
                   status: "SUCCESS",
                   timestamp: Date.now()
-                });
+                };
+                await syncSet("transactions", rTxId, referrerTxObj);
 
-                // Trigger persistent broadcast config alert to push standard system notification
-                await db.collection("config").doc("broadcast").set({
+                // Trigger persistent broadcast config alert to push standard system notification across both DB stores
+                const broadcastObj = {
                   title: "🎉 Referral Milestone Reached!",
                   message: `${friendName} completed tasks! You received +${rewardReferrerAmount} Coins.`,
                   clickUrl: "",
                   imageUrl: "https://i.ibb.co/6N6K4zS/reward.png",
                   timestamp: Date.now(),
                   targetUids: [referrerUid]
-                });
+                };
+                await syncSet("config", "broadcast", broadcastObj);
               }
             }
           }
@@ -241,8 +213,8 @@ module.exports = async (req, res) => {
 
       } catch (err) {
         dbSuccess = false;
-        dbMsg = `Firestore write error: ${err.message}`;
-        console.error("Firestore error processing credit:", err);
+        dbMsg = `DB sync write error: ${err.message}`;
+        console.error("DB sync error processing credit:", err);
       }
     } else {
       // Test bypass to pass checks
@@ -265,15 +237,17 @@ module.exports = async (req, res) => {
     db_msg: dbMsg
   };
 
-  // Log in Firestore if active to persist live dashboard logs across serverless cold starts
+  // Log in lockstep both Firestore & RTDB if active to persist live dashboard logs
   if (firebaseInitialized && db) {
     try {
       await db.collection("pubscale_callbacks").add({
         ...newLog,
         created_at: admin.firestore.FieldValue.serverTimestamp()
       });
+      // Sync log to RTDB
+      await rtdb.ref(`pubscale_callbacks/${Date.now()}`).set(newLog);
     } catch (e) {
-      console.warn("Could not save callback log to Firestore:", e);
+      console.warn("Could not save callback log to DBs:", e);
     }
   }
 
