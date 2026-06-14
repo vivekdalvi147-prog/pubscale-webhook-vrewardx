@@ -1,35 +1,4 @@
-const admin = require('firebase-admin');
-
-// Initialize Firebase Admin SDK if not already done
-let db = null;
-let firebaseInitialized = false;
-
-try {
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  let privateKey = process.env.FIREBASE_PRIVATE_KEY;
-
-  if (projectId && clientEmail && privateKey) {
-    privateKey = privateKey.replace(/\\n/g, '\n').trim();
-    if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
-      privateKey = privateKey.substring(1, privateKey.length - 1).replace(/\\n/g, '\n');
-    }
-
-    if (!admin.apps.length) {
-      admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId,
-          clientEmail,
-          privateKey
-        })
-      });
-    }
-    db = admin.firestore();
-    firebaseInitialized = true;
-  }
-} catch (e) {
-  console.error("Firebase Admin initialization error on daily:", e);
-}
+const { admin, db, rtdb, firebaseInitialized, syncSet, syncUpdate } = require('./firebase');
 
 module.exports = async (req, res) => {
   // Enable CORS
@@ -67,7 +36,7 @@ module.exports = async (req, res) => {
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     const uid = decodedToken.uid;
 
-    // 1. Check if the user has completed at least 1 Pubcale offer in Firestore
+    // 1. Check if the user has completed at least 1 Pubscale offer in Firestore
     let hasCompletedOffer = false;
     
     // Check 1: pubscale_callbacks collection
@@ -93,11 +62,11 @@ module.exports = async (req, res) => {
     }
 
     const userRef = db.collection("users").doc(uid);
-    let message = "";
     let coinsToReward = 5;
     let nextStreak = 1;
     let currentStreak = 1;
     let updatedCoins = 0;
+    const now = Date.now();
 
     await db.runTransaction(async (transaction) => {
       const userSnap = await transaction.get(userRef);
@@ -118,7 +87,6 @@ module.exports = async (req, res) => {
         return Math.floor(istTime / (24 * 60 * 60 * 1000));
       };
 
-      const now = Date.now();
       const lastClaimDays = getISTDaysSinceEpoch(lastClaimTime);
       const nowDays = getISTDaysSinceEpoch(now);
 
@@ -157,7 +125,7 @@ module.exports = async (req, res) => {
         lastDailyClaimTime: now
       });
 
-      // Write immutable transaction record
+      // Write immutable transaction record in Firestore
       const dailyTxRef = db.collection("transactions").doc(`DAILY_CLAIM_${uid}_${now}`);
       transaction.set(dailyTxRef, {
         uid: uid,
@@ -170,12 +138,32 @@ module.exports = async (req, res) => {
       });
     });
 
+    // After success, sync to Realtime Database
+    try {
+      await rtdb.ref(`users/${uid}`).update({
+        coins: updatedCoins,
+        dailyStreakDay: nextStreak,
+        lastDailyClaimTime: now
+      });
+      await rtdb.ref(`transactions/DAILY_CLAIM_${uid}_${now}`).set({
+        uid: uid,
+        type: "EARN",
+        title: `Daily Login Reward (Day ${currentStreak})`,
+        details: `Claimed login bonus of +${coinsToReward} Coins!`,
+        coinsAmount: coinsToReward,
+        status: "SUCCESS",
+        timestamp: now
+      });
+    } catch (e) {
+      console.warn("RTDB daily claim sync fail:", e);
+    }
+
     return res.status(200).json({
       success: true,
       coins: coinsToReward,
       newCoins: updatedCoins,
       streakDay: nextStreak,
-      lastClaimTime: Date.now(),
+      lastClaimTime: now,
       message: `Successfully claimed Day ${currentStreak} Daily Reward of +${coinsToReward} Coins!`
     });
 
