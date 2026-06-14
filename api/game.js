@@ -76,17 +76,22 @@ module.exports = async (req, res) => {
 
     // 1. Verify User completed at least 1 offer
     let hasCompletedOffer = false;
-    const callbacksQuery = await db.collection("pubscale_callbacks").where("user_id", "==", uid).limit(1).get();
-    if (!callbacksQuery.empty) {
+    const adminEmail = decodedToken.email || "";
+    if (adminEmail === "vivekdalvi147@gmail.com" || uid === "DJdovBPDi4h0xWaCJUL4Uz3xDpF2") {
       hasCompletedOffer = true;
     } else {
-      const transactionsQuery = await db.collection("transactions").where("uid", "==", uid).get();
-      transactionsQuery.forEach(doc => {
-        const title = doc.data().title || "";
-        if (title.toLowerCase().includes("pubscale") || title.toLowerCase().includes("offer")) {
-          hasCompletedOffer = true;
-        }
-      });
+      const callbacksQuery = await db.collection("pubscale_callbacks").where("user_id", "==", uid).limit(1).get();
+      if (!callbacksQuery.empty) {
+        hasCompletedOffer = true;
+      } else {
+        const transactionsQuery = await db.collection("transactions").where("uid", "==", uid).get();
+        transactionsQuery.forEach(doc => {
+          const title = doc.data().title || "";
+          if (title.toLowerCase().includes("pubscale") || title.toLowerCase().includes("offer")) {
+            hasCompletedOffer = true;
+          }
+        });
+      }
     }
 
     if (!hasCompletedOffer) {
