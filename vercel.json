@@ -22,6 +22,10 @@
       "dest": "api/daily.js"
     },
     {
+      "src": "/api/game",
+      "dest": "api/game.js"
+    },
+    {
       "src": "/api/referral/(.*)",
       "dest": "api/referral.js"
     },
