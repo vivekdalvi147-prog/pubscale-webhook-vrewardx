@@ -4,8 +4,6 @@ const admin = require('firebase-admin');
 let db = null;
 let firebaseInitialized = false;
 
-// bol-ai <DOCTYPE HTML> 
-//<HTMLAllCollection
 try {
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
