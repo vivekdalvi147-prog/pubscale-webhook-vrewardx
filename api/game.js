@@ -22,7 +22,7 @@ try {
           clientEmail,
           privateKey
         }),
-        databaseURL: process.env.FIREBASE_DATABASE_URL || `https://${projectId}-default-rtdb.firebaseio.com`
+        databaseURL: process.env.FIREBASE_DATABASE_URL || (projectId === "vrewardx" ? "https://vrewardx-default-rtdb.asia-southeast1.firebasedatabase.app" : `https://${projectId}-default-rtdb.firebaseio.com`)
       });
     }
     db = admin.firestore();
