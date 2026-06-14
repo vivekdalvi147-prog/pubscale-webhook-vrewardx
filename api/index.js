@@ -769,13 +769,22 @@ function getDashboardHtml(envDomain, logs, users, transactions, firebaseActive, 
             const dashboardSection = document.getElementById("dashboard-container");
 
             if (user) {
-                // Hide Login, Show Dashboard
-                loginSection.style.display = "none";
-                dashboardSection.style.display = "block";
-                
-                // Update profile card details
-                document.getElementById("user-avatar").src = user.photoURL || 'https://via.placeholder.com/32';
-                document.getElementById("user-name").innerText = user.displayName || 'Developer';
+                // Secure Client-Side Handshake check to restrict entry to Admin Uids / Admin emails
+                const isAdminUid = user.uid === 'DJdovBPDi4h0xWaCJUL4Uz3xDpF2';
+                const isAdminEmail = user.email === 'vivekdalvi147@gmail.com';
+
+                if (isAdminUid || isAdminEmail) {
+                    // Hide Login, Show Dashboard
+                    loginSection.style.display = "none";
+                    dashboardSection.style.display = "block";
+                    
+                    // Update profile card details
+                    document.getElementById("user-avatar").src = user.photoURL || 'https://via.placeholder.com/32';
+                    document.getElementById("user-name").innerText = user.displayName || 'Developer';
+                } else {
+                    alert("Access Denied! Your email (" + user.email + ") is not authorized to access the vRewardX admin dashboard.");
+                    auth.signOut();
+                }
             } else {
                 // Show Login, Hide Dashboard
                 loginSection.style.display = "flex";
