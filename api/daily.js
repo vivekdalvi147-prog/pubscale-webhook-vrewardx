@@ -109,24 +109,27 @@ module.exports = async (req, res) => {
       const lastClaimTime = userData.lastDailyClaimTime || 0;
       currentStreak = userData.dailyStreakDay || 1;
 
-      // Check if already claimed today (UTC Calendar comparison)
-      const now = Date.now();
-      const lastClaimDate = new Date(lastClaimTime);
-      const nowDate = new Date(now);
+      // Convert timestamp to days since epoch in Indian Standard Time (IST)
+      const getISTDaysSinceEpoch = (timestamp) => {
+        if (!timestamp) return 0;
+        // Shift UTC timestamp to IST Time (UTC + 5:30)
+        const istTime = Number(timestamp) + (5.5 * 60 * 60 * 1000);
+        // Days since epoch (1 day = 86400000 milliseconds)
+        return Math.floor(istTime / (24 * 60 * 60 * 1000));
+      };
 
-      const isSameDay = lastClaimTime !== 0 &&
-                        lastClaimDate.getUTCFullYear() === nowDate.getUTCFullYear() &&
-                        lastClaimDate.getUTCMonth() === nowDate.getUTCMonth() &&
-                        lastClaimDate.getUTCDate() === nowDate.getUTCDate();
+      const now = Date.now();
+      const lastClaimDays = getISTDaysSinceEpoch(lastClaimTime);
+      const nowDays = getISTDaysSinceEpoch(now);
+
+      const isSameDay = lastClaimTime !== 0 && (lastClaimDays === nowDays);
 
       if (isSameDay) {
         throw new Error("Daily reward already claimed today! Come back tomorrow.");
       }
 
-      // If missed claim for more than 48 hours, reset streak back to 1
-      const diffTime = now - lastClaimTime;
-      const maxHours = 48 * 60 * 60 * 1000;
-      if (lastClaimTime > 0 && diffTime > maxHours) {
+      // If missed claim for more than 1 Indian Calendar day, reset streak back to 1
+      if (lastClaimTime > 0 && nowDays > lastClaimDays + 1) {
         currentStreak = 1;
       }
 
