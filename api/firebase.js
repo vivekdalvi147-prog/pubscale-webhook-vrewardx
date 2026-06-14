@@ -16,6 +16,8 @@ try {
       privateKey = privateKey.substring(1, privateKey.length - 1).replace(/\\n/g, '\n');
     }
 
+    const targetDbUrl = process.env.FIREBASE_DATABASE_URL || "https://vrewardx-default-rtdb.asia-southeast1.firebasedatabase.app";
+
     if (!admin.apps.length) {
       admin.initializeApp({
         credential: admin.credential.cert({
@@ -23,19 +25,20 @@ try {
           clientEmail,
           privateKey
         }),
-        databaseURL: process.env.FIREBASE_DATABASE_URL || `https://${projectId}-default-rtdb.firebaseio.com`
+        databaseURL: targetDbUrl
       });
     }
     db = admin.firestore();
     rtdb = admin.database();
     firebaseInitialized = true;
-    firebaseStatus = `Connected successfully to firestore & RTDB project: '${projectId}'`;
+    firebaseStatus = `Connected successfully to firestore & RTDB: ${targetDbUrl}`;
     console.log(firebaseStatus);
   } else {
     // Attempt local emulator default fallback or soft passenger mode
+    const targetDbUrl = process.env.FIREBASE_DATABASE_URL || "https://vrewardx-default-rtdb.asia-southeast1.firebasedatabase.app";
     if (!admin.apps.length) {
       admin.initializeApp({
-        databaseURL: `https://${projectId}-default-rtdb.firebaseio.com`
+        databaseURL: targetDbUrl
       });
     }
     db = admin.firestore();
