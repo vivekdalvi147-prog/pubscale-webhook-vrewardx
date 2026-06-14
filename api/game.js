@@ -1,37 +1,4 @@
-const admin = require('firebase-admin');
-
-let db = null;
-let rtdb = null;
-let firebaseInitialized = false;
-
-try {
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  let privateKey = process.env.FIREBASE_PRIVATE_KEY;
-
-  if (projectId && clientEmail && privateKey) {
-    privateKey = privateKey.replace(/\\n/g, '\n').trim();
-    if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
-      privateKey = privateKey.substring(1, privateKey.length - 1).replace(/\\n/g, '\n');
-    }
-
-    if (!admin.apps.length) {
-      admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId,
-          clientEmail,
-          privateKey
-        }),
-        databaseURL: process.env.FIREBASE_DATABASE_URL || (projectId === "vrewardx" ? "https://vrewardx-default-rtdb.asia-southeast1.firebasedatabase.app" : `https://${projectId}-default-rtdb.firebaseio.com`)
-      });
-    }
-    db = admin.firestore();
-    rtdb = admin.database();
-    firebaseInitialized = true;
-  }
-} catch (e) {
-  console.error("Firebase Admin initialization error on game secure service:", e);
-}
+const { admin, db, rtdb, firebaseInitialized, syncSet, syncUpdate } = require('./firebase');
 
 module.exports = async (req, res) => {
   // CORS configuration
@@ -53,38 +20,34 @@ module.exports = async (req, res) => {
 
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ success: false, error: "Missing or invalid authorization token context." });
+    return res.status(401).json({ success: false, error: "Missing or invalid authorization context." });
   }
 
   if (!firebaseInitialized || !db || !rtdb) {
     return res.status(503).json({
       success: false,
-      error: "Firebase Administration services (Firestore or RTDB) are offline. Configure credentials."
+      error: "Firebase administration handshake was offline. Please configure FIREBASE credentials in Vercel settings."
     });
   }
 
   const idToken = authHeader.split('Bearer ')[1];
+  const { action } = req.body;
 
   try {
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     const uid = decodedToken.uid;
-    const { action } = req.body;
 
-    if (!action) {
-      return res.status(400).json({ success: false, error: "Missing game action parameter." });
-    }
-
-    // 1. Verify User completed at least 1 offer
+    // 1. Check if the user has completed at least 1 Pubscale offer to combat multi-account setups
     let hasCompletedOffer = false;
-    const adminEmail = decodedToken.email || "";
-    if (adminEmail === "vivekdalvi147@gmail.com" || uid === "DJdovBPDi4h0xWaCJUL4Uz3xDpF2") {
+
+    // Check 1: pubscale_callbacks collection
+    const callbacksQuery = await db.collection("pubscale_callbacks").where("user_id", "==", uid).limit(1).get();
+    if (!callbacksQuery.empty) {
       hasCompletedOffer = true;
     } else {
-      const callbacksQuery = await db.collection("pubscale_callbacks").where("user_id", "==", uid).limit(1).get();
-      if (!callbacksQuery.empty) {
-        hasCompletedOffer = true;
-      } else {
-        const transactionsQuery = await db.collection("transactions").where("uid", "==", uid).get();
+      // Check 2: transactions collection for "pubscale" or "offer" keyword in title or details
+      const transactionsQuery = await db.collection("transactions").where("uid", "==", uid).get();
+      if (!transactionsQuery.empty) {
         transactionsQuery.forEach(doc => {
           const title = doc.data().title || "";
           if (title.toLowerCase().includes("pubscale") || title.toLowerCase().includes("offer")) {
@@ -131,7 +94,7 @@ module.exports = async (req, res) => {
       // Save Spend Transaction
       const currentTimestampMillis = Date.now();
       const txId = `${uid}_GAME_ENTRY_${currentTimestampMillis}`;
-      await db.collection("transactions").doc(txId).set({
+      const txObj = {
         uid: uid,
         type: "SPEND",
         title: `TicTacToe Arena Entry: ${stake} Coins`,
@@ -139,7 +102,15 @@ module.exports = async (req, res) => {
         coinsAmount: -stake,
         status: "SUCCESS",
         timestamp: currentTimestampMillis
-      });
+      };
+      await syncSet("transactions", txId, txObj);
+
+      // Sync coins update to Realtime Database
+      try {
+        await rtdb.ref(`users/${uid}`).update({ coins: updatedCoins });
+      } catch (e) {
+        console.warn("RTDB game deduct coins sync fail:", e);
+      }
 
       return res.status(200).json({
         success: true,
@@ -183,7 +154,7 @@ module.exports = async (req, res) => {
       // Save Refund/Cancellation Transaction
       const currentTimestampMillis = Date.now();
       const txId = `${uid}_GAME_CANCEL_${currentTimestampMillis}`;
-      await db.collection("transactions").doc(txId).set({
+      const txObj = {
         uid: uid,
         type: "EARN",
         title: `Matchmaking Cancelled: Refund`,
@@ -191,7 +162,15 @@ module.exports = async (req, res) => {
         coinsAmount: stake,
         status: "SUCCESS",
         timestamp: currentTimestampMillis
-      });
+      };
+      await syncSet("transactions", txId, txObj);
+
+      // Sync coins update to Realtime Database
+      try {
+        await rtdb.ref(`users/${uid}`).update({ coins: updatedCoins });
+      } catch (e) {
+        console.warn("RTDB game refund coins sync fail:", e);
+      }
 
       return res.status(200).json({
         success: true,
@@ -261,7 +240,7 @@ module.exports = async (req, res) => {
       // Write transaction
       const currentTimestampMillis = Date.now();
       const txId = `${uid}_GAME_WIN_${currentTimestampMillis}`;
-      await db.collection("transactions").doc(txId).set({
+      const txObj = {
         uid: uid,
         type: "EARN",
         title: `TicTacToe Arena Victory: +${prizeAmount} Coins`,
@@ -269,15 +248,24 @@ module.exports = async (req, res) => {
         coinsAmount: prizeAmount,
         status: "SUCCESS",
         timestamp: currentTimestampMillis
-      });
+      };
+      await syncSet("transactions", txId, txObj);
 
       // Notify other players
-      const notifyRef = db.collection("config").document("broadcast");
-      await notifyRef.set({
+      const notifyRef = db.collection("config").doc("broadcast");
+      const broadcastObj = {
         title: "🎉 TicTacToe Victory Declared!",
         message: `${uid === playerX ? gameData.playerXName : gameData.playerOName} won the arena match of ${stake} Coins stake!`,
         timestamp: currentTimestampMillis
-      }, { merge: true });
+      };
+      await syncSet("config", "broadcast", broadcastObj);
+
+      // Sync coins update to Realtime Database
+      try {
+        await rtdb.ref(`users/${uid}`).update({ coins: updatedCoins });
+      } catch (e) {
+        console.warn("RTDB game victory coins sync fail:", e);
+      }
 
       return res.status(200).json({
         success: true,
@@ -357,7 +345,7 @@ module.exports = async (req, res) => {
       // Write refund transaction
       const currentTimestampMillis = Date.now();
       const txId = `${uid}_GAME_REFUND_${currentTimestampMillis}`;
-      await db.collection("transactions").doc(txId).set({
+      const txObj = {
         uid: uid,
         type: "EARN",
         title: `TicTacToe Match Refund: +${stake} Coins`,
@@ -365,7 +353,15 @@ module.exports = async (req, res) => {
         coinsAmount: stake,
         status: "SUCCESS",
         timestamp: currentTimestampMillis
-      });
+      };
+      await syncSet("transactions", txId, txObj);
+
+      // Sync coins update to Realtime Database
+      try {
+        await rtdb.ref(`users/${uid}`).update({ coins: updatedCoins });
+      } catch (e) {
+        console.warn("RTDB game refund-draw sync fail:", e);
+      }
 
       return res.status(200).json({
         success: true,
