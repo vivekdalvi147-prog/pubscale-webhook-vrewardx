@@ -1,35 +1,4 @@
-const admin = require('firebase-admin');
-
-// Initialize Firebase Admin SDK
-let db = null;
-let firebaseInitialized = false;
-
-try {
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  let privateKey = process.env.FIREBASE_PRIVATE_KEY;
-
-  if (projectId && clientEmail && privateKey) {
-    privateKey = privateKey.replace(/\\n/g, '\n').trim();
-    if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
-      privateKey = privateKey.substring(1, privateKey.length - 1).replace(/\\n/g, '\n');
-    }
-
-    if (!admin.apps.length) {
-      admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId,
-          clientEmail,
-          privateKey
-        })
-      });
-    }
-    db = admin.firestore();
-    firebaseInitialized = true;
-  }
-} catch (e) {
-  console.error("Firebase Admin initialization error on signup:", e);
-}
+const { admin, db, rtdb, firebaseInitialized, syncSet, syncUpdate } = require('./firebase');
 
 module.exports = async (req, res) => {
   // Enforce POST method for profile registration/auth operations
@@ -76,8 +45,8 @@ module.exports = async (req, res) => {
           // Device has already linked with another user id previously! Prevent duplicate 50 welcome bonus.
           userCoins = 0;
         } else {
-          // Map device to this authenticated user safely
-          await deviceDocRef.set({
+          // Map device to this authenticated user safely across both DB stores
+          await syncSet("devices", deviceId, {
             uid: uid,
             email: userEmail.toLowerCase().trim()
           });
@@ -112,8 +81,8 @@ module.exports = async (req, res) => {
         referralCode = uid.substring(0, 5).toUpperCase();
       }
 
-      // 3. Create authoritative Google User inside cloud Firestore
-      await userRef.set({
+      // 3. Create authoritative Google User inside both Firestore and RTDB
+      const newUserObj = {
         uid: uid,
         displayName: name,
         email: userEmail.toLowerCase().trim(),
@@ -127,11 +96,12 @@ module.exports = async (req, res) => {
         referralCode: referralCode,
         dailyStreakDay: 1,
         lastDailyClaimTime: 0
-      });
+      };
+      await syncSet("users", uid, newUserObj);
 
       // Write immutable starting reward welcome logs to transactions DB
       if (userCoins > 0) {
-        await welcomeTxRef.set({
+        const welcomeTxObj = {
           uid: uid,
           type: "EARN",
           title: "Registration Welcome Bonus",
@@ -139,7 +109,8 @@ module.exports = async (req, res) => {
           coinsAmount: 50,
           status: "SUCCESS",
           timestamp: Date.now()
-        });
+        };
+        await syncSet("transactions", `${uid}_WELCOME`, welcomeTxObj);
       }
     } else {
       // Return authoritative profile details
@@ -167,7 +138,7 @@ module.exports = async (req, res) => {
         if (!isUnique) {
           referralCode = uid.substring(0, 5).toUpperCase();
         }
-        await userRef.update({ referralCode: referralCode });
+        await syncUpdate("users", uid, { referralCode: referralCode });
       }
     }
 
