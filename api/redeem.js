@@ -1,35 +1,4 @@
-const admin = require('firebase-admin');
-
-// Initialize Firebase Admin SDK
-let db = null;
-let firebaseInitialized = false;
-
-try {
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  let privateKey = process.env.FIREBASE_PRIVATE_KEY;
-
-  if (projectId && clientEmail && privateKey) {
-    privateKey = privateKey.replace(/\\n/g, '\n').trim();
-    if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
-      privateKey = privateKey.substring(1, privateKey.length - 1).replace(/\\n/g, '\n');
-    }
-
-    if (!admin.apps.length) {
-      admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId,
-          clientEmail,
-          privateKey
-        })
-      });
-    }
-    db = admin.firestore();
-    firebaseInitialized = true;
-  }
-} catch (e) {
-  console.error("Firebase Admin initialization error on redeem:", e);
-}
+const { admin, db, rtdb, firebaseInitialized, syncSet, syncUpdate } = require('./firebase');
 
 module.exports = async (req, res) => {
   // Enforce POST method for withdraw operations
@@ -68,6 +37,9 @@ module.exports = async (req, res) => {
 
     const userRef = db.collection("users").doc(uid);
 
+    let updatedCoins = 0;
+    let updatedLockedCoins = 0;
+
     // 2. Perform a secure atomicity database transaction to confirm balance and deduct coins
     const result = await db.runTransaction(async (transaction) => {
       const userDoc = await transaction.get(userRef);
@@ -87,8 +59,8 @@ module.exports = async (req, res) => {
         throw new Error(`Insufficient coins. Your server balance: ${currentCoins}, requested deduction: ${coinsToDeduct}.`);
       }
 
-      const updatedCoins = currentCoins - coinsToDeduct;
-      const updatedLockedCoins = parseInt(userData.lockedCoins || 0, 10) + coinsToDeduct;
+      updatedCoins = currentCoins - coinsToDeduct;
+      updatedLockedCoins = parseInt(userData.lockedCoins || 0, 10) + coinsToDeduct;
 
       transaction.update(userRef, {
         coins: updatedCoins,
@@ -99,24 +71,25 @@ module.exports = async (req, res) => {
       return {
         previousCoins: currentCoins,
         newCoins: updatedCoins,
-        lockedCoins: updatedLockedCoins
+        lockedCoins: updatedLockedCoins,
+        finalUpi: upiId || userData.upiId || ""
       };
     });
 
-    // 3. Create a pending withdrawal transaction log securely on Firestore
+    // 3. Create a pending withdrawal transaction log securely on Firestore and RTDB
     const currentTimestampMillis = Date.now();
     const txId = `${uid}_REDEEM_${currentTimestampMillis}`;
     
     let detailsMessage = "";
     if (optionType === "UPI") {
-      detailsMessage = `Transferred to UPI ID: ${upiId}`;
+      detailsMessage = `Transferred to UPI ID: ${result.finalUpi}`;
     } else if (optionType === "PLAYSTORE") {
       detailsMessage = "Google Play Redeem Voucher issued instantly";
     } else {
       detailsMessage = "Amazon Pay Gift Card Voucher";
     }
 
-    await db.collection("transactions").doc(txId).set({
+    const txObj = {
       uid: uid,
       type: "REDEEM",
       title: `${rewardDisplayValue} Payout Request`,
@@ -124,7 +97,21 @@ module.exports = async (req, res) => {
       coinsAmount: coinsToDeduct,
       status: "PENDING",
       timestamp: currentTimestampMillis
-    });
+    };
+
+    // Use lockstep sync API
+    await syncSet("transactions", txId, txObj);
+
+    // Sync user updates to Realtime Database
+    try {
+      await rtdb.ref(`users/${uid}`).update({
+        coins: updatedCoins,
+        lockedCoins: updatedLockedCoins,
+        upiId: result.finalUpi
+      });
+    } catch (e) {
+      console.warn("RTDB redeem coins sync fail:", e);
+    }
 
     return res.status(200).json({
       success: true,
