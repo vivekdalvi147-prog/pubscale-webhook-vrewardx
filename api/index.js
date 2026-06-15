@@ -1,40 +1,4 @@
-const admin = require('firebase-admin');
-
-// Initialize Firebase Admin SDK
-let db = null;
-let firebaseInitialized = false;
-let firebaseStatus = "Not Initialized";
-
-try {
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  let privateKey = process.env.FIREBASE_PRIVATE_KEY;
-
-  if (projectId && clientEmail && privateKey) {
-    privateKey = privateKey.replace(/\\n/g, '\n').trim();
-    if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
-      privateKey = privateKey.substring(1, privateKey.length - 1).replace(/\\n/g, '\n');
-    }
-
-    if (!admin.apps.length) {
-      admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId,
-          clientEmail,
-          privateKey
-        })
-      });
-    }
-    db = admin.firestore();
-    firebaseInitialized = true;
-    firebaseStatus = `Connected successfully to firestore project: '${projectId}'`;
-  } else {
-    firebaseStatus = "Passive Mode (Logging Only). Configure FIREBASE credentials in Vercel to credit real coins.";
-  }
-} catch (e) {
-  firebaseStatus = `Firebase initialization error: ${e.message}`;
-  console.error("Firebase Admin init error:", e);
-}
+const { admin, db, rtdb, firebaseInitialized, firebaseStatus } = require('./firebase');
 
 function getDashboardHtml(envDomain, logs, users, transactions, firebaseActive, firebaseMsg) {
   const logsRows = logs.length === 0 
