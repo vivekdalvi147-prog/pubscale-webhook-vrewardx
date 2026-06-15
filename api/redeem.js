@@ -23,7 +23,24 @@ module.exports = async (req, res) => {
     return res.status(400).json({ success: false, error: "Coins needed must be a positive integer." });
   }
 
-  if (!firebaseInitialized || !db) {
+  // Strictly enforce predefined package configurations on the server to prevent client-side/vulnerability exploits!
+  let isValidPackage = false;
+  if (optionType === "UPI" && (coinsToDeduct === 2600 || coinsToDeduct === 5000)) {
+    isValidPackage = true;
+  } else if (optionType === "PLAYSTORE" && (coinsToDeduct === 1885 || coinsToDeduct === 2600 || coinsToDeduct === 5000)) {
+    isValidPackage = true;
+  } else if (optionType === "AMAZON" && (coinsToDeduct === 1300 || coinsToDeduct === 5000)) {
+    isValidPackage = true;
+  }
+
+  if (!isValidPackage) {
+    return res.status(400).json({ 
+      success: false, 
+      error: "Security Check failed: Invalid payout option or unauthorized coin cost manipulation. Operation blocked." 
+    });
+  }
+
+  if (!firebaseInitialized || !rtdb) {
     return res.status(503).json({ 
       success: false, 
       error: "Firebase database connection was offline. Configure FIREBASE credentials on Vercel." 
