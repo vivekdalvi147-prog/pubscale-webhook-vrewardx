@@ -145,7 +145,7 @@ module.exports = async (req, res) => {
         title: "🎉 Referral Successful!",
         message: `${friendName} connected using referral code ${referrerCode}! Both received +31 Coins.`,
         clickUrl: "",
-        imageUrl: "https://i.ibb.co/6N6K4zS/reward.png",
+        imageUrl: "https://i.ibb.co/958hp8y/reward.jpg",
         timestamp: currentTimestamp,
         targetUids: [referrerUid, uid]
       };
