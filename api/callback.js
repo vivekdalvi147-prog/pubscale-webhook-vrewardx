@@ -195,11 +195,11 @@ module.exports = async (req, res) => {
                 // Trigger persistent broadcast config alert to push standard system notification across both DB stores
                 const broadcastObj = {
                   title: "🎉 Referral Milestone Reached!",
-                  message: `${friendName} completed tasks! You received +${rewardReferrerAmount} Coins.`,
+                  message: `${friendName} completed tasks! Sponsor received +${rewardReferrerAmount} Coins.`,
                   clickUrl: "",
                   imageUrl: "https://i.ibb.co/6N6K4zS/reward.png",
                   timestamp: Date.now(),
-                  targetUids: [referrerUid]
+                  targetUids: [referrerUid, user_id]
                 };
                 await syncSet("config", "broadcast", broadcastObj);
               }
