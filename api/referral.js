@@ -91,17 +91,9 @@ module.exports = async (req, res) => {
 
       const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || "127.0.0.1";
 
-      let updatedReferrerCoins = 0;
       let updatedUserCoins = 0;
 
-      // 3. Reward the Sponsor/Referrer (User A) with 31 coins immediately as requested by project rules!
-      await rtdb.ref(`users/${referrerUid}/coins`).transaction((currentCoins) => {
-        const coins = (currentCoins || 0) + 31;
-        updatedReferrerCoins = coins;
-        return coins;
-      });
-
-      // Credit +31 coins inside referred user account (User B)
+      // Credit +31 coins inside referred user account (User B, who is linking the code)
       await rtdb.ref(`users/${uid}/coins`).transaction((currentCoins) => {
         const coins = (currentCoins || 0) + 31;
         updatedUserCoins = coins;
@@ -113,19 +105,6 @@ module.exports = async (req, res) => {
       const friendName = friendSnap.exists() ? (friendSnap.val().displayName || "Active Friend") : "Invited Friend";
 
       const currentTimestamp = Date.now();
-
-      // 4. Save transaction log for the Referrer who gets +31 Coins in both DB stores
-      const rTxId = `REF_LINK_${uid}_${referrerUid}_${currentTimestamp}`;
-      const referrerTxObj = {
-        uid: referrerUid,
-        type: "EARN",
-        title: "Referral Link Bonus",
-        details: `${friendName} manually linked your referral code! (+31 Coins)`,
-        coinsAmount: 31,
-        status: "SUCCESS",
-        timestamp: currentTimestamp
-      };
-      await syncSet("transactions", rTxId, referrerTxObj);
 
       // Save transaction log for the Referred friend who gets +31 Coins in both DB stores
       const uTxId = `REF_LINK_SELF_${uid}_${currentTimestamp}`;
@@ -143,7 +122,7 @@ module.exports = async (req, res) => {
       // 5. Trigger persistent broadcast config alert to push system notification to BOTH the referrer and referred friend
       const broadcastObj = {
         title: "🎉 Referral Successful!",
-        message: `${friendName} connected using referral code ${referrerCode}! Both received +31 Coins.`,
+        message: `${friendName} connected using referral code ${referrerCode}! [${friendName}] received +31 Coins instantly.`,
         clickUrl: "",
         imageUrl: "https://i.ibb.co/958hp8y/reward.jpg",
         timestamp: currentTimestamp,
@@ -164,15 +143,6 @@ module.exports = async (req, res) => {
       };
       await syncSet("referrals", uid, referralObj);
 
-      // Sync referrer and user coins update to Realtime Database
-      try {
-        await rtdb.ref(`users/${referrerUid}`).update({
-          coins: updatedReferrerCoins
-        });
-      } catch (e) {
-        console.warn("RTDB referrer claim coins sync fail:", e);
-      }
-
       try {
         await rtdb.ref(`users/${uid}`).update({
           coins: updatedUserCoins
@@ -185,7 +155,7 @@ module.exports = async (req, res) => {
         success: true,
         referrerName,
         referralCode: referrerCode,
-        message: `Successfully linked referral code of ${referrerName}! Both accounts received 31 Coins instantly!`
+        message: `Successfully linked referral code of ${referrerName}! You received +31 Coins instantly!`
       });
 
     } catch (err) {
