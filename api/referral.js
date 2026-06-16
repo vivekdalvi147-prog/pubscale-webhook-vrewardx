@@ -92,11 +92,19 @@ module.exports = async (req, res) => {
       const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || "127.0.0.1";
 
       let updatedUserCoins = 0;
+      let updatedReferrerCoins = 0;
 
-      // Credit +31 coins inside referred user account (User B, who is linking the code)
+      // Credit +31 coins inside referred user account (User A, who is linking the code)
       await rtdb.ref(`users/${uid}/coins`).transaction((currentCoins) => {
         const coins = (currentCoins || 0) + 31;
         updatedUserCoins = coins;
+        return coins;
+      });
+
+      // Credit +31 coins inside sponsor/referrer account (User B) as per AGENTS.md instructions
+      await rtdb.ref(`users/${referrerUid}/coins`).transaction((currentCoins) => {
+        const coins = (currentCoins || 0) + 31;
+        updatedReferrerCoins = coins;
         return coins;
       });
 
@@ -119,14 +127,27 @@ module.exports = async (req, res) => {
       };
       await syncSet("transactions", uTxId, userTxObj);
 
-      // 5. Trigger persistent broadcast config alert to push system notification to BOTH the referrer and referred friend
+      // Save transaction log for the Sponsor/Referrer who gets +31 Coins in both DB stores as per AGENTS.md instructions
+      const rTxId = `REF_LINK_SPONSOR_${uid}_${currentTimestamp}`;
+      const referrerTxObj = {
+        uid: referrerUid,
+        type: "EARN",
+        title: "Referral Link Bonus",
+        details: `${friendName} manually linked your invitation code! (+31 Coins)`,
+        coinsAmount: 31,
+        status: "SUCCESS",
+        timestamp: currentTimestamp
+      };
+      await syncSet("transactions", rTxId, referrerTxObj);
+
+      // 5. Trigger persistent broadcast config alert to push system notification to the referrer with official title
       const broadcastObj = {
-        title: "🎉 Referral Successful!",
-        message: `${friendName} connected using referral code ${referrerCode}! [${friendName}] received +31 Coins instantly.`,
+        title: "🎉 Friend Linked Your Code!",
+        message: `Your friend ${friendName} manually linked your invitation code! +31 Coins added.`,
         clickUrl: "",
         imageUrl: "https://i.ibb.co/958hp8y/reward.jpg",
         timestamp: currentTimestamp,
-        targetUids: [referrerUid, uid]
+        targetUids: [referrerUid]
       };
       await syncSet("config", "broadcast", broadcastObj);
 
