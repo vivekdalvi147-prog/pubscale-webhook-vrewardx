@@ -725,7 +725,7 @@ function getDashboardHtml(envDomain, firebaseMsg, firebaseActive) {
             if (data.logs.length === 0) {
                 logsTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #8b949e; padding: 20px;">Waiting for test callbacks from PubScale dashboard...</td></tr>';
             } else {
-                logsTbody.innerHTML = data.logs.map(item => `
+                logsTbody.innerHTML = data.logs.map(item => \`
                     <tr>
                         <td>\${item.timestamp}</td>
                         <td><code>\${item.user_id}</code></td>
@@ -747,7 +747,7 @@ function getDashboardHtml(envDomain, firebaseMsg, firebaseActive) {
                             }
                         </td>
                     </tr>
-                `).join('');
+                \`).join('');
             }
 
             // Render Users
@@ -755,7 +755,7 @@ function getDashboardHtml(envDomain, firebaseMsg, firebaseActive) {
             if (data.users.length === 0) {
                 usersTbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #8b949e; padding: 20px;">No registered users synchronized yet...</td></tr>';
             } else {
-                usersTbody.innerHTML = data.users.map(item => `
+                usersTbody.innerHTML = data.users.map(item => \`
                     <tr>
                         <td><strong style="color: #ffffff;">\${item.displayName}</strong></td>
                         <td><code>\${item.uid}</code></td>
@@ -763,7 +763,7 @@ function getDashboardHtml(envDomain, firebaseMsg, firebaseActive) {
                         <td><strong style="color: #58a6ff;">\${Math.round(item.coins)} Coins</strong></td>
                         <td><code style="font-size: 0.85em; color: #ff7b72;">\${item.deviceId}</code></td>
                     </tr>
-                `).join('');
+                \`).join('');
             }
 
             // Render Transactions
@@ -774,7 +774,7 @@ function getDashboardHtml(envDomain, firebaseMsg, firebaseActive) {
                 txTbody.innerHTML = data.transactions.map(item => {
                     const formattedDate = new Date(item.timestamp).toLocaleString();
                     const badgeColor = item.type === "REDEEM" ? "color: #f85149;" : "color: #3fb950;";
-                    return `
+                    return \`
                         <tr>
                             <td>\${formattedDate}</td>
                             <td><code>\${item.uid}</code></td>
@@ -786,14 +786,14 @@ function getDashboardHtml(envDomain, firebaseMsg, firebaseActive) {
                             <td><strong style="\${badgeColor}">\${item.type === "REDEEM" ? "-" : "+"}\${Math.round(item.coinsAmount)} Coins</strong></td>
                             <td>
                                 \${item.status === "SUCCESS" 
-                                    ? '\\<span class="success-text" style="font-size: 0.9em; font-weight: bold;">✓ APPROVED</span>\\''
+                                    ? '<span class="success-text" style="font-size: 0.9em; font-weight: bold;">✓ APPROVED</span>'
                                     : item.status === "PENDING"
-                                        ? '\\<span style="color: #d29922; font-size: 0.9em; font-weight: bold;">⏳ PENDING</span>\\''
-                                        : '\\<span class="error-text" style="font-size: 0.9em; font-weight: bold;">✗ REJECTED</span>\\''
+                                        ? '<span style="color: #d29922; font-size: 0.9em; font-weight: bold;">⏳ PENDING</span>'
+                                        : '<span class="error-text" style="font-size: 0.9em; font-weight: bold;">✗ REJECTED</span>'
                                 }
                             </td>
                         </tr>
-                    `;
+                    \`;
                 }).join('');
             }
         }
