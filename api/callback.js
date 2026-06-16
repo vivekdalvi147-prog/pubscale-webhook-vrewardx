@@ -95,27 +95,31 @@ module.exports = async (req, res) => {
         if (userSnapshot.exists()) {
           const userData = userSnapshot.val();
           currentCoins = userData.coins || 0;
-          currentCoins = parseInt(currentCoins, 10) || 0;
-          const newCoins = currentCoins + valueInt;
+          currentCoins = parseFloat(currentCoins) || 0;
+          const newCoins = currentCoins + valueFloat;
 
           // Double update both DB stores
-          await syncUpdate("users", user_id, { coins: newCoins });
+          await syncUpdate("users", user_id, { 
+            coins: newCoins,
+            hasCompletedOffer: true 
+          });
           dbSuccess = true;
-          dbMsg = `Credited (+${valueInt}). Total: ${newCoins} coins.`;
+          dbMsg = `Credited (+${valueFloat}). Total: ${newCoins} coins.`;
         } else {
           // Create document with initial balance in both stores
           const newUserObj = {
             uid: user_id,
             displayName: "PubScale Offerwall User",
             email: "offerwall_user@example.com",
-            coins: valueInt,
+            coins: valueFloat,
             lockedCoins: 0,
             upiId: "",
-            androidId: "offerwall_s2s"
+            androidId: "offerwall_s2s",
+            hasCompletedOffer: true
           };
           await syncSet("users", user_id, newUserObj);
           dbSuccess = true;
-          dbMsg = `Created profile. Credited (+${valueInt}) coins.`;
+          dbMsg = `Created profile. Credited (+${valueFloat}) coins.`;
         }
 
         // Fetch final user record name for references
@@ -127,8 +131,8 @@ module.exports = async (req, res) => {
           uid: user_id,
           type: "EARN",
           title: "PubScale Reward",
-          details: `Rewarded ${valueInt} coins for completing tasks (Ref: ${token}).`,
-          coinsAmount: valueInt,
+          details: `Rewarded ${valueFloat} coins for completing tasks (Ref: ${token}).`,
+          coinsAmount: valueFloat,
           status: "SUCCESS",
           timestamp: currentTimestampMillis
         };
