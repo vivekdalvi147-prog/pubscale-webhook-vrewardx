@@ -39,33 +39,38 @@ module.exports = async (req, res) => {
     // 1. Check if the user has completed at least 1 Pubscale offer in RTDB
     let hasCompletedOffer = false;
     
-    // Check 1: pubscale_callbacks collection in RTDB
-    const callbacksQuery = await rtdb.ref("pubscale_callbacks").orderByChild("user_id").equalTo(uid).limitToFirst(1).get();
-    if (callbacksQuery.exists()) {
+    // Check user first in RTDB
+    const userSnapshot = await rtdb.ref(`users/${uid}`).get();
+    if (!userSnapshot.exists()) {
+      return res.status(404).json({ success: false, error: "User record does not exist." });
+    }
+
+    const userData = userSnapshot.val() || {};
+
+    if (userData.hasCompletedOffer === true || (userData.completedPubscaleOffers || 0) > 0 || (userData.completedCount || 0) > 0) {
       hasCompletedOffer = true;
-    } else {
-      // Check 2: transactions collection in RTDB for "pubscale" or "offer" keyword in title
-      const flatTxQuery = await rtdb.ref("transactions").orderByChild("uid").equalTo(uid).get();
-      if (flatTxQuery.exists()) {
-        flatTxQuery.forEach(child => {
-          const title = child.val().title || "";
-          if (title.toLowerCase().includes("pubscale") || title.toLowerCase().includes("offer")) {
-            hasCompletedOffer = true;
-          }
-        });
-      }
-      
-      if (!hasCompletedOffer) {
-        // Nested transactions/uid
+    }
+
+    // Direct nested transaction scan (Immune to index errors, 100% reliable & index-free!)
+    if (!hasCompletedOffer) {
+      try {
         const nestedTxQuery = await rtdb.ref(`transactions/${uid}`).get();
         if (nestedTxQuery.exists()) {
           nestedTxQuery.forEach(child => {
             const title = child.val().title || "";
-            if (title.toLowerCase().includes("pubscale") || title.toLowerCase().includes("offer")) {
+            const details = child.val().details || "";
+            if (
+              title.toLowerCase().includes("pubscale") || 
+              title.toLowerCase().includes("offer") ||
+              details.toLowerCase().includes("pubscale") ||
+              details.toLowerCase().includes("offer")
+            ) {
               hasCompletedOffer = true;
             }
           });
         }
+      } catch (errNested) {
+        console.warn("Nested transactions query failed gracefully:", errNested.message);
       }
     }
 
@@ -82,13 +87,6 @@ module.exports = async (req, res) => {
     let updatedCoins = 0;
     const now = Date.now();
 
-    // Check user first in RTDB
-    const userSnapshot = await rtdb.ref(`users/${uid}`).get();
-    if (!userSnapshot.exists()) {
-      return res.status(404).json({ success: false, error: "User record does not exist." });
-    }
-
-    const userData = userSnapshot.val();
     const lastClaimTime = userData.lastDailyClaimTime || 0;
     currentStreak = userData.dailyStreakDay || 1;
 
