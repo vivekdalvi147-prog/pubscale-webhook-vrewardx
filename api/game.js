@@ -40,33 +40,36 @@ module.exports = async (req, res) => {
     // 1. Check if the user has completed at least 1 Pubscale offer to combat multi-account setups
     let hasCompletedOffer = false;
 
-    // Check 1: pubscale_callbacks collection in RTDB
-    const callbacksQuery = await rtdb.ref("pubscale_callbacks").orderByChild("user_id").equalTo(uid).limitToFirst(1).get();
-    if (callbacksQuery.exists()) {
-      hasCompletedOffer = true;
-    } else {
-      // Check 2: transactions collection in RTDB for "pubscale" or "offer" keyword in title or details
-      const flatTxQuery = await rtdb.ref("transactions").orderByChild("uid").equalTo(uid).get();
-      if (flatTxQuery.exists()) {
-        flatTxQuery.forEach(child => {
-          const title = child.val().title || "";
-          if (title.toLowerCase().includes("pubscale") || title.toLowerCase().includes("offer")) {
-            hasCompletedOffer = true;
-          }
-        });
+    // Load user first in RTDB to check inline flag which is super fast and requires no index
+    const userSnapshot = await rtdb.ref(`users/${uid}`).get();
+    let userDataVal = {};
+    if (userSnapshot.exists()) {
+      userDataVal = userSnapshot.val() || {};
+      if (userDataVal.hasCompletedOffer === true || (userDataVal.completedPubscaleOffers || 0) > 0 || (userDataVal.completedCount || 0) > 0) {
+        hasCompletedOffer = true;
       }
-      
-      if (!hasCompletedOffer) {
-        // Nested transactions/uid
+    }
+
+    // Direct nested transaction scan (Immune to index errors, 100% reliable & index-free!)
+    if (!hasCompletedOffer) {
+      try {
         const nestedTxQuery = await rtdb.ref(`transactions/${uid}`).get();
         if (nestedTxQuery.exists()) {
           nestedTxQuery.forEach(child => {
             const title = child.val().title || "";
-            if (title.toLowerCase().includes("pubscale") || title.toLowerCase().includes("offer")) {
+            const details = child.val().details || "";
+            if (
+              title.toLowerCase().includes("pubscale") || 
+              title.toLowerCase().includes("offer") ||
+              details.toLowerCase().includes("pubscale") ||
+              details.toLowerCase().includes("offer")
+            ) {
               hasCompletedOffer = true;
             }
           });
         }
+      } catch (errNested) {
+        console.warn("Nested transactions query failed gracefully:", errNested.message);
       }
     }
 
