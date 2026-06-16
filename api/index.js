@@ -180,237 +180,149 @@ function getDashboardHtml(envDomain, firebaseMsg) {
             border: 1px solid var(--card-border);
         }
 
-        .avatar-img {
+        .user-avatar {
             width: 32px;
             height: 32px;
             border-radius: 50%;
             object-fit: cover;
-            border: 1.5px solid var(--primary-blue);
         }
 
-        .profile-name {
+        .user-info {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .user-name {
+            font-size: 0.85em;
             font-weight: 600;
-            font-size: 0.9em;
             color: #ffffff;
         }
 
         .logout-btn {
-            background: none;
-            border: none;
+            background-color: transparent;
+            border: 1px solid var(--danger-color);
             color: var(--danger-color);
-            font-size: 0.85em;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.75em;
             cursor: pointer;
-            padding: 4px 8px;
-            border-radius: 4px;
             font-weight: bold;
-            transition: background-color 0.2s;
+            transition: all 0.2s;
         }
 
         .logout-btn:hover {
-            background-color: rgba(248, 81, 73, 0.1);
+            background-color: var(--danger-color);
+            color: #ffffff;
         }
 
-        /* CARDS & CONTAINERS */
-        .card {
+        /* STATUS BADGES & STATS ROW */
+        .status-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .status-badge {
             background-color: var(--card-bg);
             border: 1px solid var(--card-border);
-            border-radius: 12px;
-            padding: 25px;
-            margin-bottom: 25px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
-        }
-
-        .card-title {
-            font-size: 1.15em;
-            font-weight: 700;
-            color: #ffffff;
-            margin-bottom: 12px;
+            color: var(--text-main);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
             display: flex;
             align-items: center;
             gap: 8px;
         }
 
-        /* GRID METRICS */
-        .metrics-grid {
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .dot-green { background-color: #3fb950; box-shadow: 0 0 8px #3fb950; }
+        .dot-yellow { background-color: #d29922; box-shadow: 0 0 8px #d29922; }
+
+        .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 15px;
             margin-bottom: 25px;
-            width: 100%;
         }
 
         .stat-card {
             background-color: var(--card-bg);
             border: 1px solid var(--card-border);
             border-radius: 12px;
-            padding: 20px 25px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .stat-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 4px;
-            height: 100%;
-            background-color: var(--primary-blue);
-        }
-
-        .stat-card:nth-child(2)::before {
-            background-color: #3fb950;
-        }
-
-        .stat-card:nth-child(3)::before {
-            background-color: #ff7b72;
+            padding: 20px;
+            text-align: center;
         }
 
         .stat-value {
-            font-size: 2.1em;
-            font-weight: 800;
-            margin-bottom: 4px;
+            font-size: 1.8em;
+            font-weight: bold;
+            color: var(--primary-blue);
+            margin-bottom: 5px;
         }
 
         .stat-label {
             font-size: 0.85em;
             color: var(--text-secondary);
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
         }
 
-        /* TABS MENU */
-        .tab-container {
-            display: flex;
-            border-bottom: 1px solid var(--card-border);
-            margin-bottom: 25px;
-            gap: 8px;
-            overflow-x: auto;
-            scrollbar-width: none; /* Hide standard firefox scrollbars */
-        }
-
-        .tab-container::-webkit-scrollbar {
-            display: none; /* Hide webkit scroll */
-        }
-
-        .tab-btn {
-            background: none;
-            border: none;
-            color: var(--text-secondary);
-            padding: 12px 20px;
-            font-size: 0.95em;
-            font-weight: 600;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            transition: all 0.2s;
-            white-space: nowrap;
-        }
-
-        .tab-btn:hover {
-            color: #ffffff;
-        }
-
-        .tab-btn.active {
-            color: var(--primary-blue);
-            border-bottom: 2px solid var(--primary-blue);
-        }
-
-        /* TAB PANEL CONTENT */
-        .tab-content {
-            display: none;
-            animation: fadeIn 0.3s ease-in-out;
-        }
-
-        .tab-content.active {
-            display: block;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .tab-content h2 {
-            font-size: 1.4em;
-            color: #ffffff;
-            margin-top: 0;
-            margin-bottom: 8px;
-        }
-
-        /* LARGE SYSTEM TABLES */
-        .table-responsive {
-            width: 100%;
-            overflow-x: auto;
+        /* CALLBACK & CARD SECTIONS */
+        .card {
             background-color: var(--card-bg);
-            border: 1px solid var(--card-border);
             border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        }
-
-        .log-table {
-            width: 100%;
-            border-collapse: collapse;
-            text-align: left;
-            font-size: 0.9em;
-            min-width: 800px;
-        }
-
-        .log-table th {
-            background-color: #1f242c;
-            color: #ffffff;
-            padding: 15px;
-            font-weight: 600;
-            border-bottom: 1px solid var(--card-border);
-        }
-
-        .log-table td {
-            padding: 15px;
-            border-bottom: 1px solid var(--card-border);
-            vertical-align: middle;
-            line-height: 1.4;
-        }
-
-        .log-table tr:hover {
-            background-color: #1c212b;
-        }
-
-        /* REUSABLE STYLING UTILITIES */
-        code {
-            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-            background-color: #1f242c;
-            color: #ff7b72;
-            padding: 3px 6px;
-            border-radius: 6px;
-            font-size: 0.9em;
-            border: 1px solid rgba(248, 81, 73, 0.15);
-        }
-
-        #callback-url {
-            color: #58a6ff;
-            font-weight: bold;
-            font-size: 0.95em;
-            padding: 8px 14px;
+            padding: 24px;
+            margin: 20px 0;
             border: 1px solid var(--card-border);
-            background-color: #0b0f17;
-            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+
+        .card-title {
+            font-size: 1.15em;
+            font-weight: bold;
+            color: var(--primary-blue);
+            margin-top: 0;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        code {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #0d1117;
+            padding: 6px 12px;
+            border-radius: 6px;
+            color: #ff7b72;
+            font-size: 1.05em;
+            word-break: break-all;
+            border: 1px solid #21262d;
             flex-grow: 1;
+        }
+
+        .copied-hint {
+            color: #3fb950;
+            font-size: 0.85em;
+            margin-left: 10px;
+            display: none;
         }
 
         .copy-btn {
             background-color: #21262d;
             border: 1px solid var(--card-border);
-            color: #c9d1d9;
+            color: var(--text-main);
             padding: 8px 16px;
             border-radius: 6px;
             cursor: pointer;
-            font-weight: 500;
             font-size: 0.9em;
-            transition: all 0.2s;
+            transition: 0.2s;
         }
 
         .copy-btn:hover {
@@ -418,12 +330,78 @@ function getDashboardHtml(envDomain, firebaseMsg) {
             border-color: #8b949e;
         }
 
-        .copied-hint {
-            color: #3fb950;
-            font-size: 0.85em;
-            font-weight: bold;
+        /* TABS STYLING */
+        .tab-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 30px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--card-border);
+            padding-bottom: 10px;
+            overflow-x: auto;
+        }
+
+        .tab-btn {
+            background-color: transparent;
+            border: 1px solid transparent;
+            color: var(--text-secondary);
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 0.95em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .tab-btn:hover {
+            color: #ffffff;
+            background-color: #1f242d;
+        }
+
+        .tab-btn.active {
+            color: var(--primary-blue);
+            background-color: #1f242d;
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .tab-content {
             display: none;
-            animation: fadeIn 0.2s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* LOGS TABLE CSS */
+        .table-responsive {
+            overflow-x: auto;
+            border-radius: 12px;
+            border: 1px solid var(--card-border);
+            background-color: var(--card-bg);
+        }
+
+        .log-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9em;
+        }
+
+        .log-table th, .log-table td {
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        .log-table th {
+            background-color: #0d1117;
+            color: var(--primary-blue);
+            font-weight: 600;
+        }
+
+        .log-table tr:hover {
+            background-color: #1a202c;
         }
 
         .success-text {
@@ -432,88 +410,119 @@ function getDashboardHtml(envDomain, firebaseMsg) {
         }
 
         .error-text {
-            color: #f85149;
+            color: var(--danger-color);
             font-weight: bold;
         }
 
+        /* FOOTER */
         footer {
+            margin-top: 40px;
+            margin-bottom: 20px;
             text-align: center;
-            padding: 35px 20px;
             color: var(--text-secondary);
             font-size: 0.85em;
-            width: 100%;
-            box-sizing: border-box;
-            border-top: 1px dashed var(--card-border);
-            margin-top: 20px;
         }
 
         footer a {
             color: var(--primary-blue);
             text-decoration: none;
         }
-
-        footer a:hover {
-            text-decoration: underline;
-        }
-
-        @media (max-width: 600px) {
-            .navbar {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            .user-profile {
-                width: 100%;
-                box-sizing: border-box;
-                justify-content: space-between;
-            }
-        }
     </style>
+
+    <script>
+        function copyText(id, hintId) {
+            var text = document.getElementById(id).innerText;
+            navigator.clipboard.writeText(text);
+            var hint = document.getElementById(hintId);
+            hint.style.display = 'inline';
+            setTimeout(function() {
+                hint.style.display = 'none';
+            }, 2000);
+        }
+
+        function switchTab(tabId) {
+            // Hide all tabs
+            const contents = document.querySelectorAll(".tab-content");
+            contents.forEach(el => el.classList.remove("active"));
+            
+            const buttons = document.querySelectorAll(".tab-btn");
+            buttons.forEach(el => el.classList.remove("active"));
+            
+            // Show target
+            document.getElementById(tabId).classList.add("active");
+            
+            // Activate button styling
+            event.currentTarget.classList.add("active");
+        }
+    </script>
 </head>
 <body>
 
-    <!-- SECURE GATEWAY LOGIN SCREEN -->
+    <!-- 1. GOOGLE LOGIN SCREEN -->
     <div id="login-container" class="login-screen">
         <div class="login-card">
-            <img class="login-logo" src="https://i.ibb.co/6N6K4zS/reward.png" alt="vRewardX Logo">
-            <h2>vRewardX Server Panel</h2>
-            <p>Authorized access required. Sign in with developer's authenticated credentials to administer transaction postbacks securely.</p>
+            <img class="login-logo" src="https://i.ibb.co/TDMwv5QD/Generated-Image-June052026-10-45-AM.jpg" alt="vRewardX Logo">
+            <h2>vRewardX S2S Console</h2>
+            <p>Sign in with your Google account to access webhook configurations and live streams.</p>
+            
             <button class="google-btn" onclick="googleLogin()">
-                <img src="https://i.ibb.co/72Y8Bsy/google-icon.png" alt="Google G Logo">
-                Sign in with Google Account
+                <img src="https://lh3.googleusercontent.com/COxitqgJr1sICZ9m4_SxCxOfmI2AH0m99FmOfCH_Cj5ywC2WIB6ODb9_7X9S4Z2S-g7=" alt="Google Icon">
+                Sign In with Google
             </button>
+            
+            <div style="margin-top: 25px; font-size: 0.8em; color: var(--text-secondary);">
+                Made with ❤️ by Vivek Dalvi
+            </div>
         </div>
     </div>
 
-    <!-- MAIN ADMINISTRATIVE WORKPLACE (HIDDEN INITIALLY) -->
+    <!-- 2. AUTHENTICATED DASHBOARD PANEL -->
     <div id="dashboard-container" class="dashboard-container">
         
-        <!-- SECURE HEADER NAVIGATION BAR -->
+        <!-- NAVBAR -->
         <div class="navbar">
             <div class="brand-logo-area">
-                <img class="brand-logo-img" src="https://i.ibb.co/6N6K4zS/reward.png" alt="vRewardX Web Logo">
+                <img class="brand-logo-img" src="https://i.ibb.co/TDMwv5QD/Generated-Image-June052026-10-45-AM.jpg" alt="vRewardX Logo">
                 <div class="brand-title-wrap">
-                    <h1>vRewardX Console <span class="developer-badge">Live Admin Control</span></h1>
+                    <h1>vRewardX Webhook Console <span class="developer-badge">v2.1</span></h1>
+                    <span style="font-size: 0.8em; color: var(--text-secondary);">made by vivek dalvi</span>
                 </div>
             </div>
+
+            <!-- Profile Widget -->
             <div class="user-profile">
-                <img id="user-avatar" class="avatar-img" src="" alt="User Avatar">
-                <span id="user-name" class="profile-name">Admin Loader</span>
-                <button class="logout-btn" onclick="logout()">LOGOUT</button>
+                <img id="user-avatar" class="user-avatar" src="" alt="User Avatar">
+                <div class="user-info">
+                    <span id="user-name" class="user-name">Loading...</span>
+                    <button class="logout-btn" onclick="logout()">Logout</button>
+                </div>
             </div>
         </div>
 
-        <!-- STAT CARDS REALTIME METRICS GRID -->
-        <div class="metrics-grid">
+        <!-- STATUS BAR -->
+        <div class="status-container">
+            <div class="status-badge">
+                <span class="status-dot dot-green"></span>
+                <span>SERVER ONLINE (NODE.JS)</span>
+            </div>
+            ${firebaseActive 
+              ? `<div class="status-badge"><span class="status-dot dot-green"></span><span>FIREBASE SYNC: ACTIVE</span></div>`
+              : `<div class="status-badge"><span class="status-dot dot-yellow"></span><span>FIREBASE: PASSIVE LOG ONLY</span></div>`
+            }
+        </div>
+
+        <!-- STATS / METRICS VIEW (LOOKS ADVANCED) -->
+        <div class="stats-grid">
             <div class="stat-card">
-                <div class="stat-value" id="stat-registered-users" style="color: #58a6ff;">-</div>
-                <div class="stat-label">Total Registered Users</div>
+                <div class="stat-value">${totalRegisteredUsers}</div>
+                <div class="stat-label">Verified Users Sync</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value" id="stat-circulation-coins" style="color: #3fb950;">-</div>
+                <div class="stat-value" style="color: #79c0ff;">${totalCoinsInCirculation}</div>
                 <div class="stat-label">Total Coins in Circulation</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value" id="stat-pending-withdrawals" style="color: #ff7b72;">-</div>
+                <div class="stat-value" style="color: #ff7b72;">${pendingRedemptions}</div>
                 <div class="stat-label">Pending Payout Claims</div>
             </div>
         </div>
@@ -554,9 +563,9 @@ function getDashboardHtml(envDomain, firebaseMsg) {
 
         <!-- TAB MENU SYSTEM -->
         <div class="tab-container">
-            <button id="tab-btn-logs" class="tab-btn active" onclick="switchTab('pubscale-logs')">🛡️ Pubscale hook webhooks</button>
-            <button id="tab-btn-users" class="tab-btn" onclick="switchTab('app-users')">👥 Registered App Users</button>
-            <button id="tab-btn-txs" class="tab-btn" onclick="switchTab('s2s-transactions')">📜 Secure S2S Activity Logs</button>
+            <button class="tab-btn active" onclick="switchTab('pubscale-logs')">🛡️ Pubscale hook webhooks</button>
+            <button class="tab-btn" onclick="switchTab('app-users')">👥 Registered App Users (${totalRegisteredUsers})</button>
+            <button class="tab-btn" onclick="switchTab('s2s-transactions')">📜 Secure S2S Activity Logs (${transactions.length})</button>
         </div>
 
         <!-- TAB CONTENT: PUBSCALE WEBHOOKS -->
@@ -575,8 +584,8 @@ function getDashboardHtml(envDomain, firebaseMsg) {
                             <th>Database Status</th>
                         </tr>
                     </thead>
-                    <tbody id="logs-tbody">
-                        <tr><td colspan="6" style="text-align: center; color: #8b949e; padding: 20px;">Fetching dashboard logs...</td></tr>
+                    <tbody>
+                        ${logsRows}
                     </tbody>
                 </table>
             </div>
@@ -597,8 +606,8 @@ function getDashboardHtml(envDomain, firebaseMsg) {
                             <th>Registered Device ID</th>
                         </tr>
                     </thead>
-                    <tbody id="users-tbody">
-                        <tr><td colspan="5" style="text-align: center; color: #8b949e; padding: 20px;">Fetching dynamic user profiles...</td></tr>
+                    <tbody>
+                        ${usersRows}
                     </tbody>
                 </table>
             </div>
@@ -620,8 +629,8 @@ function getDashboardHtml(envDomain, firebaseMsg) {
                             <th>Server Status</th>
                         </tr>
                     </thead>
-                    <tbody id="transactions-tbody">
-                        <tr><td colspan="6" style="text-align: center; color: #8b949e; padding: 20px;">Fetching transactions...</td></tr>
+                    <tbody>
+                        ${transactionsRows}
                     </tbody>
                 </table>
             </div>
@@ -640,53 +649,17 @@ function getDashboardHtml(envDomain, firebaseMsg) {
             authDomain: "vrewardx.firebaseapp.com",
             projectId: "vrewardx",
             storageBucket: "vrewardx.firebasestorage.app",
-            messagingSenderId: "17385960410",
-            appId: "1:17385960410:web:8e30bba0dfb8418acbf8ab"
+            messagingSenderId: "446047163907",
+            appId: "1:446047163907:web:9aa45be59b0476699c2036",
+            measurementId: "G-GBVZZ517HF"
         };
 
-        // Initialize Firebase SDK Compat layers
+        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
 
-        // Switch Administrative Workspace categories on the Client
-        function switchTab(tabId) {
-            // Hide all panels
-            const tabs = document.getElementsByClassName("tab-content");
-            for (let i = 0; i < tabs.length; i++) {
-                tabs[i].classList.remove("active");
-            }
-            
-            // Remove active style from all menu buttons
-            const buttons = document.getElementsByClassName("tab-btn");
-            for (let i = 0; i < buttons.length; i++) {
-                buttons[i].classList.remove("active");
-            }
-
-            // Expose active panel & highlight button
-            document.getElementById(tabId).classList.add("active");
-            
-            let btnId = "tab-btn-logs";
-            if (tabId === "app-users") btnId = "tab-btn-users";
-            else if (tabId === "s2s-transactions") btnId = "tab-btn-txs";
-            document.getElementById(btnId).classList.add("active");
-        }
-
-        // Copy callback URL helpers
-        function copyText(elemId, hintId) {
-            const urlText = document.getElementById(elemId).innerText;
-            navigator.clipboard.writeText(urlText).then(() => {
-                const hint = document.getElementById(hintId);
-                hint.style.display = "inline-block";
-                setTimeout(() => {
-                    hint.style.display = "none";
-                }, 2000);
-            }).catch(err => {
-                console.error("Copy failed due to permissions constraints:", err);
-            });
-        }
-
         // Watch Authentication State
-        auth.onAuthStateChanged(async (user) => {
+        auth.onAuthStateChanged((user) => {
             const loginSection = document.getElementById("login-container");
             const dashboardSection = document.getElementById("dashboard-container");
 
@@ -703,29 +676,6 @@ function getDashboardHtml(envDomain, firebaseMsg) {
                     // Update profile card details
                     document.getElementById("user-avatar").src = user.photoURL || 'https://via.placeholder.com/32';
                     document.getElementById("user-name").innerText = user.displayName || 'Developer';
-
-                    // Fetch admin statistics and logs securely from backend!
-                    try {
-                        const idToken = await user.getIdToken();
-                        const response = await fetch('/api', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': 'Bearer ' + idToken
-                            }
-                        });
-                        const data = await response.json();
-                        if (data.success) {
-                            renderAdminData(data);
-                        } else {
-                            alert("Access Denied: " + data.error);
-                            auth.signOut();
-                        }
-                    } catch (err) {
-                        console.error("Failed to load dashboard data:", err);
-                        alert("Failed to load dashboard data from server.");
-                        auth.signOut();
-                    }
                 } else {
                     alert("Access Denied! Your email (" + user.email + ") is not authorized to access the vRewardX admin dashboard.");
                     auth.signOut();
@@ -736,93 +686,6 @@ function getDashboardHtml(envDomain, firebaseMsg) {
                 dashboardSection.style.display = "none";
             }
         });
-
-        function renderAdminData(data) {
-            // Render Stats
-            document.getElementById("stat-registered-users").innerText = data.stats.totalRegisteredUsers;
-            document.getElementById("stat-pending-withdrawals").innerText = data.stats.pendingRedemptions;
-            document.getElementById("stat-circulation-coins").innerText = data.stats.totalCoinsInCirculation;
-
-            document.getElementById("tab-btn-users").innerText = "👥 Registered App Users (" + data.stats.totalRegisteredUsers + ")";
-            document.getElementById("tab-btn-txs").innerText = "📜 Secure S2S Activity Logs (" + data.transactions.length + ")";
-
-            // Render Logs/Callbacks
-            const logsTbody = document.getElementById("logs-tbody");
-            if (data.logs.length === 0) {
-                logsTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #8b949e; padding: 20px;">Waiting for test callbacks from PubScale dashboard...</td></tr>';
-            } else {
-                logsTbody.innerHTML = data.logs.map(item => \`
-                    <tr>
-                        <td>\${item.timestamp}</td>
-                        <td><code>\${item.user_id}</code></td>
-                        <td><strong style="color: #79c0ff;">+\${item.value} Coins</strong></td>
-                        <td><code style="font-size: 0.85em;">\${item.token}</code></td>
-                        <td>
-                            \${item.verified 
-                                ? \\\`<span class="success-text">✓ Verified Signature</span><br><small style="color: #8b949e; font-size: 0.85em;">Formula: \${item.formula}</small>\\\` 
-                                : \\\`<span class="error-text">✗ Verification Mismatch</span>\\\`
-                            }
-                        </td>
-                        <td>
-                            \${item.verified 
-                                ? (item.db_success 
-                                        ? \\\`<span class="success-text">✓ Real Value Credited</span>\\\` 
-                                        : \\\`<span class="error-text">✗ Failed db update</span>\\\`
-                                    ) + \\\`<br><small style="color: #8b949e; font-size: 0.85em;">\${item.db_msg}</small>\\\`
-                                : \\\`<span style="color: #8b949e;">Blocked</span>\\\`
-                            }
-                        </td>
-                    </tr>
-                \`).join('');
-            }
-
-            // Render Users
-            const usersTbody = document.getElementById("users-tbody");
-            if (data.users.length === 0) {
-                usersTbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #8b949e; padding: 20px;">No registered users synchronized yet...</td></tr>';
-            } else {
-                usersTbody.innerHTML = data.users.map(item => \`
-                    <tr>
-                        <td><strong style="color: #ffffff;">\${item.displayName}</strong></td>
-                        <td><code>\${item.uid}</code></td>
-                        <td><span style="color: #8b949e;">\${item.email}</span></td>
-                        <td><strong style="color: #58a6ff;">\${item.coins} Coins</strong></td>
-                        <td><code style="font-size: 0.85em; color: #ff7b72;">\${item.deviceId}</code></td>
-                    </tr>
-                \`).join('');
-            }
-
-            // Render Transactions
-            const txTbody = document.getElementById("transactions-tbody");
-            if (data.transactions.length === 0) {
-                txTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #8b949e; padding: 20px;">No S2S transaction logs found in database...</td></tr>';
-            } else {
-                txTbody.innerHTML = data.transactions.map(item => {
-                    const formattedDate = new Date(item.timestamp).toLocaleString();
-                    const badgeColor = item.type === "REDEEM" ? "color: #f85149;" : "color: #3fb950;";
-                    return \`
-                        <tr>
-                            <td>\${formattedDate}</td>
-                            <td><code>\${item.uid}</code></td>
-                            <td><strong style="\${badgeColor}">\${item.type}</strong></td>
-                            <td>
-                                <div style="font-weight: bold; color: #ffffff;">\${item.title}</div>
-                                <small style="color: var(--text-secondary); font-size: 0.85em;">\${item.details}</small>
-                            </td>
-                            <td><strong style="\${badgeColor}">\${item.type === "REDEEM" ? "-" : "+"}\${item.coinsAmount} Coins</strong></td>
-                            <td>
-                                \${item.status === "SUCCESS" 
-                                    ? '\\\<span class="success-text" style="font-size: 0.9em; font-weight: bold;">✓ APPROVED</span>\\\''
-                                    : item.status === "PENDING"
-                                        ? '\\\<span style="color: #d29922; font-size: 0.9em; font-weight: bold;">⏳ PENDING</span>\\\''
-                                        : '\\\<span class="error-text" style="font-size: 0.9em; font-weight: bold;">✗ REJECTED</span>\\\''
-                                }
-                            </td>
-                        </tr>
-                    \`;
-                }).join('');
-            }
-        }
 
         // Sign in with Google Popup
         function googleLogin() {
