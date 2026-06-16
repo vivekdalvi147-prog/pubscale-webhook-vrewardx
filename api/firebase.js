@@ -67,6 +67,12 @@ async function syncUpdate(collection, docId, data) {
   try {
     const cleanPath = `${collection}/${docId}`.replace(/\./g, '_');
     await rtdb.ref(cleanPath).update(data);
+    
+    // Light-weight nested user sync for client transaction listeners
+    if (collection === "transactions" && data && data.uid) {
+      const nestedPath = `transactions/${data.uid}/${docId}`.replace(/\./g, '_');
+      await rtdb.ref(nestedPath).update(data);
+    }
   } catch (err) {
     console.warn(`RTDB update fail at ${collection}/${docId}:`, err.message);
   }
@@ -86,6 +92,12 @@ async function syncSet(collection, docId, data) {
   try {
     const cleanPath = `${collection}/${docId}`.replace(/\./g, '_');
     await rtdb.ref(cleanPath).set(data);
+    
+    // Light-weight nested user sync for client transaction listeners
+    if (collection === "transactions" && data && data.uid) {
+      const nestedPath = `transactions/${data.uid}/${docId}`.replace(/\./g, '_');
+      await rtdb.ref(nestedPath).set(data);
+    }
   } catch (err) {
     console.warn(`RTDB set fail at ${collection}/${docId}:`, err.message);
   }
