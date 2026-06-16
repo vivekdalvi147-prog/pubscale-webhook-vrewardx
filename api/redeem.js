@@ -52,39 +52,65 @@ module.exports = async (req, res) => {
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     const uid = decodedToken.uid;
 
-    // Read user from RTDB
-    const userSnapshot = await rtdb.ref(`users/${uid}`).get();
-    if (!userSnapshot.exists()) {
-      return res.status(404).json({ success: false, error: "Your user account was not found in database." });
-    }
+    const now = Date.now();
+    let transactionResultError = null;
+    let previousCoins = 0;
+    let newCoins = 0;
+    let lockedCoins = 0;
+    let finalUpi = "";
 
-    const userData = userSnapshot.val();
-    if (userData.isBlocked) {
-      return res.status(403).json({ success: false, error: "This account has been permanently suspended for violating rules." });
-    }
+    const transactionResult = await rtdb.ref(`users/${uid}`).transaction((user) => {
+      if (user === null) {
+        return user; // Return user which is null to let SDK load the data from server
+      }
 
-    const currentCoins = parseInt(userData.coins || 0, 10);
+      if (user.isBlocked) {
+        transactionResultError = "This account has been permanently suspended for violating rules.";
+        return; // Cancel transaction
+      }
 
-    // CRITICAL SERVER-SIDE BALANCE VALIDATION!
-    if (currentCoins < coinsToDeduct) {
-      return res.status(400).json({ success: false, error: `Insufficient coins. Your server balance: ${currentCoins}, requested deduction: ${coinsToDeduct}.` });
-    }
+      const currentCoins = parseInt(user.coins || 0, 10);
 
-    const updatedCoins = currentCoins - coinsToDeduct;
-    const updatedLockedCoins = parseInt(userData.lockedCoins || 0, 10) + coinsToDeduct;
-    const finalUpi = upiId || userData.upiId || "";
+      // CRITICAL SERVER-SIDE BALANCE VALIDATION!
+      if (currentCoins < coinsToDeduct) {
+        transactionResultError = `Insufficient coins. Your server balance: ${currentCoins}, requested deduction: ${coinsToDeduct}.`;
+        return; // Cancel transaction
+      }
 
-    // Save update securely inside RTDB
-    await rtdb.ref(`users/${uid}`).update({
-      coins: updatedCoins,
-      lockedCoins: updatedLockedCoins,
-      upiId: finalUpi
+      // ENFORCE 1-HOUR COOLDOWN LIMITATION
+      const lastWithdrawal = parseInt(user.lastWithdrawalTimestamp || 0, 10);
+      const oneHourMs = 3600000;
+      if (now - lastWithdrawal < oneHourMs) {
+        const minutesLeft = Math.ceil((oneHourMs - (now - lastWithdrawal)) / 60000);
+        transactionResultError = `Rate Limit: You can request a withdrawal only once per 1 hour. Please wait ${minutesLeft} minute(s).`;
+        return; // Cancel transaction
+      }
+
+      user.coins = currentCoins - coinsToDeduct;
+      user.lockedCoins = parseInt(user.lockedCoins || 0, 10) + coinsToDeduct;
+      user.upiId = upiId || user.upiId || "";
+      user.lastWithdrawalTimestamp = now;
+
+      previousCoins = currentCoins;
+      newCoins = user.coins;
+      lockedCoins = user.lockedCoins;
+      finalUpi = user.upiId;
+
+      return user;
     });
 
+    if (transactionResultError) {
+      return res.status(400).json({ success: false, error: transactionResultError });
+    }
+
+    if (!transactionResult.committed) {
+      return res.status(500).json({ success: false, error: "Database transaction was busy, please try again." });
+    }
+
     const result = {
-      previousCoins: currentCoins,
-      newCoins: updatedCoins,
-      lockedCoins: updatedLockedCoins,
+      previousCoins: previousCoins,
+      newCoins: newCoins,
+      lockedCoins: lockedCoins,
       finalUpi: finalUpi
     };
 
