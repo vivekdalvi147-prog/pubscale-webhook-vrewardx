@@ -1,6 +1,6 @@
 const { admin, db, rtdb, firebaseInitialized, firebaseStatus } = require('./firebase');
 
-function getDashboardHtml(envDomain, firebaseMsg) {
+function getDashboardHtml(envDomain, firebaseMsg, firebaseActive) {
   return `
 <!DOCTYPE html>
 <html lang="en">
@@ -185,6 +185,7 @@ function getDashboardHtml(envDomain, firebaseMsg) {
             height: 32px;
             border-radius: 50%;
             object-fit: cover;
+            border: 1.5px solid var(--primary-blue);
         }
 
         .user-info {
@@ -461,12 +462,12 @@ function getDashboardHtml(envDomain, firebaseMsg) {
     <!-- 1. GOOGLE LOGIN SCREEN -->
     <div id="login-container" class="login-screen">
         <div class="login-card">
-            <img class="login-logo" src="https://i.ibb.co/TDMwv5QD/Generated-Image-June052026-10-45-AM.jpg" alt="vRewardX Logo">
+            <img class="login-logo" src="https://i.ibb.co/6N6K4zS/reward.png" alt="vRewardX Logo">
             <h2>vRewardX S2S Console</h2>
             <p>Sign in with your Google account to access webhook configurations and live streams.</p>
             
             <button class="google-btn" onclick="googleLogin()">
-                <img src="https://lh3.googleusercontent.com/COxitqgJr1sICZ9m4_SxCxOfmI2AH0m99FmOfCH_Cj5ywC2WIB6ODb9_7X9S4Z2S-g7=" alt="Google Icon">
+                <img src="https://i.ibb.co/72Y8Bsy/google-icon.png" alt="Google Icon">
                 Sign In with Google
             </button>
             
@@ -482,7 +483,7 @@ function getDashboardHtml(envDomain, firebaseMsg) {
         <!-- NAVBAR -->
         <div class="navbar">
             <div class="brand-logo-area">
-                <img class="brand-logo-img" src="https://i.ibb.co/TDMwv5QD/Generated-Image-June052026-10-45-AM.jpg" alt="vRewardX Logo">
+                <img class="brand-logo-img" src="https://i.ibb.co/6N6K4zS/reward.png" alt="vRewardX Logo">
                 <div class="brand-title-wrap">
                     <h1>vRewardX Webhook Console <span class="developer-badge">v2.1</span></h1>
                     <span style="font-size: 0.8em; color: var(--text-secondary);">made by vivek dalvi</span>
@@ -514,15 +515,15 @@ function getDashboardHtml(envDomain, firebaseMsg) {
         <!-- STATS / METRICS VIEW (LOOKS ADVANCED) -->
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="stat-value">${totalRegisteredUsers}</div>
+                <div class="stat-value" id="val-registered-users">-</div>
                 <div class="stat-label">Verified Users Sync</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value" style="color: #79c0ff;">${totalCoinsInCirculation}</div>
+                <div class="stat-value" id="val-circulation-coins" style="color: #79c0ff;">-</div>
                 <div class="stat-label">Total Coins in Circulation</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value" style="color: #ff7b72;">${pendingRedemptions}</div>
+                <div class="stat-value" id="val-pending-withdrawals" style="color: #ff7b72;">-</div>
                 <div class="stat-label">Pending Payout Claims</div>
             </div>
         </div>
@@ -564,8 +565,8 @@ function getDashboardHtml(envDomain, firebaseMsg) {
         <!-- TAB MENU SYSTEM -->
         <div class="tab-container">
             <button class="tab-btn active" onclick="switchTab('pubscale-logs')">🛡️ Pubscale hook webhooks</button>
-            <button class="tab-btn" onclick="switchTab('app-users')">👥 Registered App Users (${totalRegisteredUsers})</button>
-            <button class="tab-btn" onclick="switchTab('s2s-transactions')">📜 Secure S2S Activity Logs (${transactions.length})</button>
+            <button class="tab-btn" id="btn-tab-users" onclick="switchTab('app-users')">👥 Registered App Users</button>
+            <button class="tab-btn" id="btn-tab-txs" onclick="switchTab('s2s-transactions')">📜 Secure S2S Activity Logs</button>
         </div>
 
         <!-- TAB CONTENT: PUBSCALE WEBHOOKS -->
@@ -584,8 +585,8 @@ function getDashboardHtml(envDomain, firebaseMsg) {
                             <th>Database Status</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        ${logsRows}
+                    <tbody id="logs-tbody">
+                        <tr><td colspan="6" style="text-align: center; color: #8b949e; padding: 20px;">Fetching dashboard logs...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -606,8 +607,8 @@ function getDashboardHtml(envDomain, firebaseMsg) {
                             <th>Registered Device ID</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        ${usersRows}
+                    <tbody id="users-tbody">
+                        <tr><td colspan="5" style="text-align: center; color: #8b949e; padding: 20px;">Fetching dynamic user profiles...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -629,8 +630,8 @@ function getDashboardHtml(envDomain, firebaseMsg) {
                             <th>Server Status</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        ${transactionsRows}
+                    <tbody id="transactions-tbody">
+                        <tr><td colspan="6" style="text-align: center; color: #8b949e; padding: 20px;">Fetching transactions...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -659,7 +660,7 @@ function getDashboardHtml(envDomain, firebaseMsg) {
         const auth = firebase.auth();
 
         // Watch Authentication State
-        auth.onAuthStateChanged((user) => {
+        auth.onAuthStateChanged(async (user) => {
             const loginSection = document.getElementById("login-container");
             const dashboardSection = document.getElementById("dashboard-container");
 
@@ -676,6 +677,29 @@ function getDashboardHtml(envDomain, firebaseMsg) {
                     // Update profile card details
                     document.getElementById("user-avatar").src = user.photoURL || 'https://via.placeholder.com/32';
                     document.getElementById("user-name").innerText = user.displayName || 'Developer';
+
+                    // Fetch admin statistics and logs securely from backend!
+                    try {
+                        const idToken = await user.getIdToken();
+                        const response = await fetch('/api', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': 'Bearer ' + idToken
+                            }
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            renderAdminData(data);
+                        } else {
+                            alert("Access Denied: " + data.error);
+                            auth.signOut();
+                        }
+                    } catch (err) {
+                        console.error("Failed to load dashboard data:", err);
+                        alert("Failed to load dashboard data from server.");
+                        auth.signOut();
+                    }
                 } else {
                     alert("Access Denied! Your email (" + user.email + ") is not authorized to access the vRewardX admin dashboard.");
                     auth.signOut();
@@ -686,6 +710,93 @@ function getDashboardHtml(envDomain, firebaseMsg) {
                 dashboardSection.style.display = "none";
             }
         });
+
+        function renderAdminData(data) {
+            // Render Stats
+            document.getElementById("val-registered-users").innerText = data.stats.totalRegisteredUsers;
+            document.getElementById("val-pending-withdrawals").innerText = data.stats.pendingRedemptions;
+            document.getElementById("val-circulation-coins").innerText = Math.round(data.stats.totalCoinsInCirculation);
+
+            document.getElementById("btn-tab-users").innerText = "👥 Registered App Users (" + data.stats.totalRegisteredUsers + ")";
+            document.getElementById("btn-tab-txs").innerText = "📜 Secure S2S Activity Logs (" + data.transactions.length + ")";
+
+            // Render Logs/Callbacks
+            const logsTbody = document.getElementById("logs-tbody");
+            if (data.logs.length === 0) {
+                logsTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #8b949e; padding: 20px;">Waiting for test callbacks from PubScale dashboard...</td></tr>';
+            } else {
+                logsTbody.innerHTML = data.logs.map(item => `
+                    <tr>
+                        <td>\${item.timestamp}</td>
+                        <td><code>\${item.user_id}</code></td>
+                        <td><strong style="color: #79c0ff;">+\${item.value} Coins</strong></td>
+                        <td><code style="font-size: 0.85em;">\${item.token}</code></td>
+                        <td>
+                            \${item.verified 
+                                ? \`<span class="success-text">✓ Verified Signature</span><br><small style="color: #8b949e; font-size: 0.85em;">Formula: \${item.formula}</small>\` 
+                                : \`<span class="error-text">✗ Verification Mismatch</span>\`
+                            }
+                        </td>
+                        <td>
+                            \${item.verified 
+                                ? (item.db_success 
+                                        ? \`<span class="success-text">✓ Real Value Credited</span>\` 
+                                        : \`<span class="error-text">✗ Failed db update</span>\`
+                                    ) + \`<br><small style="color: #8b949e; font-size: 0.85em;">\${item.db_msg}</small>\`
+                                : \`<span style="color: #8b949e;">Blocked</span>\`
+                            }
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            // Render Users
+            const usersTbody = document.getElementById("users-tbody");
+            if (data.users.length === 0) {
+                usersTbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #8b949e; padding: 20px;">No registered users synchronized yet...</td></tr>';
+            } else {
+                usersTbody.innerHTML = data.users.map(item => `
+                    <tr>
+                        <td><strong style="color: #ffffff;">\${item.displayName}</strong></td>
+                        <td><code>\${item.uid}</code></td>
+                        <td><span style="color: #8b949e;">\${item.email}</span></td>
+                        <td><strong style="color: #58a6ff;">\${Math.round(item.coins)} Coins</strong></td>
+                        <td><code style="font-size: 0.85em; color: #ff7b72;">\${item.deviceId}</code></td>
+                    </tr>
+                `).join('');
+            }
+
+            // Render Transactions
+            const txTbody = document.getElementById("transactions-tbody");
+            if (data.transactions.length === 0) {
+                txTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #8b949e; padding: 20px;">No S2S transaction logs found in database...</td></tr>';
+            } else {
+                txTbody.innerHTML = data.transactions.map(item => {
+                    const formattedDate = new Date(item.timestamp).toLocaleString();
+                    const badgeColor = item.type === "REDEEM" ? "color: #f85149;" : "color: #3fb950;";
+                    return `
+                        <tr>
+                            <td>\${formattedDate}</td>
+                            <td><code>\${item.uid}</code></td>
+                            <td><strong style="\${badgeColor}">\${item.type}</strong></td>
+                            <td>
+                                <div style="font-weight: bold; color: #ffffff;">\${item.title}</div>
+                                <small style="color: var(--text-secondary); font-size: 0.85em;">\${item.details}</small>
+                            </td>
+                            <td><strong style="\${badgeColor}">\${item.type === "REDEEM" ? "-" : "+"}\${Math.round(item.coinsAmount)} Coins</strong></td>
+                            <td>
+                                \${item.status === "SUCCESS" 
+                                    ? '\\<span class="success-text" style="font-size: 0.9em; font-weight: bold;">✓ APPROVED</span>\\''
+                                    : item.status === "PENDING"
+                                        ? '\\<span style="color: #d29922; font-size: 0.9em; font-weight: bold;">⏳ PENDING</span>\\''
+                                        : '\\<span class="error-text" style="font-size: 0.9em; font-weight: bold;">✗ REJECTED</span>\\''
+                                }
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+        }
 
         // Sign in with Google Popup
         function googleLogin() {
@@ -786,7 +897,7 @@ module.exports = async (req, res) => {
               displayName: data.displayName || "Unknown User",
               email: data.email || "No Email",
               coins: data.coins !== undefined ? data.coins : 0,
-              deviceId: data.deviceId || "Empty"
+              deviceId: data.deviceId || data.androidId || "Empty"
             });
           });
         }
@@ -835,7 +946,7 @@ module.exports = async (req, res) => {
           });
         }
         transactions.sort((a, b) => b.timestamp - a.timestamp);
-        transactions = transactions.slice(0, 30);
+        transactions = transactions.slice(0, 50);
       } catch (err) {
         console.error("Error reading transactions from RTDB:", err);
       }
@@ -863,7 +974,7 @@ module.exports = async (req, res) => {
   }
 
   // GET DEFAULT REQUEST RENDERS IMMUTABLE SAFE HTML SHELL WITH NO PERSISTENT ACCOUNT RECORDS PRE-INJECTED!
-  const html = getDashboardHtml(envDomain, firebaseStatus);
+  const html = getDashboardHtml(envDomain, firebaseStatus, firebaseInitialized);
   res.setHeader('Content-Type', 'text/html');
   return res.status(200).send(html);
 };
