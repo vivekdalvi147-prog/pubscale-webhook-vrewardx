@@ -61,15 +61,15 @@ module.exports = async (req, res) => {
   // 1. Strictly enforce predefined configurations & server-controlled display values (NEVER trust client display values)
   let serverDisplayValue = "";
   if (optionType === "UPI") {
-    if (coinsToDeduct === 2600) serverDisplayValue = "UPI ₹200";
-    else if (coinsToDeduct === 5000) serverDisplayValue = "UPI ₹400";
+    if (coinsToDeduct === 2600) serverDisplayValue = "UPI ₹25";
+    else if (coinsToDeduct === 5000) serverDisplayValue = "UPI ₹50";
   } else if (optionType === "PLAYSTORE") {
-    if (coinsToDeduct === 1885) serverDisplayValue = "Google Play ₹150";
-    else if (coinsToDeduct === 2600) serverDisplayValue = "Google Play ₹200";
-    else if (coinsToDeduct === 5000) serverDisplayValue = "Google Play ₹400";
+    if (coinsToDeduct === 1885) serverDisplayValue = "PlayStore ₹18";
+    else if (coinsToDeduct === 2600) serverDisplayValue = "PlayStore ₹25";
+    else if (coinsToDeduct === 5000) serverDisplayValue = "PlayStore ₹50";
   } else if (optionType === "AMAZON") {
-    if (coinsToDeduct === 1300) serverDisplayValue = "Amazon Pay ₹100";
-    else if (coinsToDeduct === 5000) serverDisplayValue = "Amazon Pay ₹400";
+    if (coinsToDeduct === 1300) serverDisplayValue = "Amazon ₹10";
+    else if (coinsToDeduct === 5000) serverDisplayValue = "Amazon ₹50";
   }
 
   if (!serverDisplayValue) {
