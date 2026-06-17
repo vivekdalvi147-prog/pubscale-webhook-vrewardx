@@ -140,31 +140,31 @@ module.exports = async (req, res) => {
       const friendSnap = await rtdb.ref(`users/${uid}`).get();
       const friendName = friendSnap.exists() ? (friendSnap.val().displayName || "Active Friend") : "Invited Friend";
 
-      // Credit +31 coins inside referrer's account (User B, the sponsor) atomically
-      let referrerUpdated = false;
-      await rtdb.ref(`users/${referrerUid}`).transaction((userData) => {
+      // Credit +31 coins inside referred user's account (uid - User B who entered the code) atomically
+      let friendUpdated = false;
+      await rtdb.ref(`users/${uid}`).transaction((userData) => {
         if (!userData) return userData;
         userData.coins = (parseFloat(userData.coins || 0) || 0) + 31;
-        referrerUpdated = true;
+        friendUpdated = true;
         return userData;
       });
 
-      if (!referrerUpdated) {
+      if (!friendUpdated) {
         return res.status(500).json({ success: false, error: "Failed to link referral code safely. Please try again." });
       }
 
-      // Save transaction log for the Referrer who gets +31 Coins with UUID/collision-immune format
-      const rTxId = `REF_LINK_SPONSOR_${referrerUid}_${currentTimestamp}_${crypto.randomBytes(4).toString('hex')}`;
-      const referrerTxObj = {
-        uid: referrerUid,
+      // Save transaction log for the friend (uid) who gets +31 Coins
+      const fTxId = `REF_LINK_FRIEND_${uid}_${currentTimestamp}_${crypto.randomBytes(4).toString('hex')}`;
+      const friendTxObj = {
+        uid: uid,
         type: "EARN",
-        title: "Referral Link Bonus",
-        details: `Friend ${friendName} linked your invitation code! (+31 Coins)`,
+        title: "Referral Reward",
+        details: `Successfully linked to ${referrerName}'s code! (+31 Coins)`,
         coinsAmount: 31,
         status: "SUCCESS",
         timestamp: currentTimestamp
       };
-      await syncSet("transactions", rTxId, referrerTxObj);
+      await syncSet("transactions", fTxId, friendTxObj);
 
       // Trigger persistent broadcast config alert to push system notification to the Sponsor with official title
       const broadcastObj = {
@@ -194,7 +194,7 @@ module.exports = async (req, res) => {
         success: true,
         referrerName,
         referralCode: referrerCode,
-        message: `Successfully linked referral code of ${referrerName}! Your friend received +31 Coins instantly!`
+        message: `Successfully linked referral code of ${referrerName}! You received +31 Coins instantly!`
       });
 
     } catch (err) {
